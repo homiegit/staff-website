@@ -71,6 +71,8 @@ const Home = () => {
   const handleLogin = async (e: any) => {
     e.preventDefault();
     console.log("searching database before logging in");
+    setWrongPassword(false);
+    setNoAccountFound(false);
 
     const userData = {
       signInUserName,
@@ -135,56 +137,54 @@ const Home = () => {
 
   const handlePassword = (text: string) => {
     setSignInPassword(text)
-  }
+  } 
 
   return(
     <div style={{backgroundColor: 'aquamarine', width: '100vw', height: '100vw'}}>
-      {showNavBar && (
-          <>
-           <NavBar />
-        {userProfile ? (
-          <>
-          <div style={{color: 'blueviolet', fontSize: 30, textAlign: 'center'}}>
-            Welcome Back {userProfile.userName}
-          </div>
-          </>
-        ) : (
+      {showNavBar ? (
+        <NavBar /> 
+      ) : (
+        <div style={{height: 19, width: '100vw'}}>
+        </div>
+      )}
+      {userProfile ? (
+        <div style={{color: 'blueviolet', fontSize: 30, textAlign: 'center'}}>
+          Welcome Back {userProfile.userName}
+        </div>
+      ) : (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 500, height: 500}}>
-          <form>
+          {wrongPassword && (
+            <div style={{color: 'red', fontSize: 15}}>
+            Wrong Password
+            </div>
+          )}
+          {noAccountFound && (
+            <div style={{color: 'red', fontSize: 15}}>
+              No Account found
+            </div>
+          )}
+          <form onSubmit={(e) => handleLogin(e)}>
             <input onChange={(e) => handleUserName(e.target.value)} style={{width: 200, height: 30, color: 'black', backgroundColor: 'cornsilk', borderColor: 'steelblue', borderWidth: 2}}>
             </input>
           </form>
           <div style={{display: 'flex', flexDirection: 'row'}}>
+            <form onSubmit={(e) => handleLogin(e)}>
             <input onChange={(e) => handlePassword(e.target.value)} style={{width: 200, height: 30, color: 'black', backgroundColor: 'cornsilk', borderColor: 'steelblue', borderWidth: 2}} type={showPassword ? '' : 'password'}>
-            
             </input>
+            </form>
             {showPassword ? (
-                <VscEye onClick={() => setShowPassword(!showPassword)} style={{color: 'unset', fontSize: 30}}/>
-              ) : (
-                <VscEyeClosed onClick={() => setShowPassword(!showPassword)} style={{color: 'unset', fontSize: 30}}/>
-              )}
+              <VscEye onClick={() => setShowPassword(!showPassword)} style={{color: 'unset', fontSize: 30}}/>
+            ) : (
+              <VscEyeClosed onClick={() => setShowPassword(!showPassword)} style={{color: 'unset', fontSize: 30}}/>
+            )}
           </div>
           <button onClick={(e) => handleLogin(e)}>
             Log In
           </button>
         </div>
-        )}
-        </>
       )}
     </div>
   )
 }
 
 export default Home;
-
-// export async function getServerSideProps() {
-//   const { userProfile, addUser, removeUser } = useAuthStore();
-
-//   const props = {
-//     user: userProfile
-//   }
-//   return {
-//     props
-//   }
-
-// }

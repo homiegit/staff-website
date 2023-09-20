@@ -5,13 +5,15 @@ import Quill from 'quill';
 //import dynamic from 'next/dynamic';
 import 'quill/dist/quill.snow.css';
 
-import { IVideo, IUser } from '../../../homie-website/types.js'
+import { IVideo, IUser, IStaffVideoReview } from '../../../homie-website/types.js'
 import VideoCard from '../../components/VideoCard';
+import useAuthStore from '../../store/authStore';
 
 import { GiCancel } from 'react-icons/gi'
 import { FaCheck } from 'react-icons/fa'
 import { HiExclamationCircle } from 'react-icons/hi'
 import PreviewReview from './previewReview';
+import NavBar from '../../components/NavBar';
 
 interface IProps {
   video: IVideo
@@ -29,9 +31,20 @@ export interface ClaimArray {
   reliability: string;
 }
 
-const reviewer = 'diego'
+interface BibleSource {
+  book: string;
+  chapter: string;
+  verse: string;
+}
+
+interface UrlSource {
+  title: string;
+  url: URL;
+}
 
 const VideoId = () => {
+  const { userProfile, addUser, removeUser } = useAuthStore();
+
   const [video, setVideo] = useState<IVideo | null>(null);
   const [user, setUser] = useState<IUser | null>(null);
 
@@ -46,14 +59,25 @@ const VideoId = () => {
 
   const [chosenVideoReliability, setChosenVideoReliability] = useState('');
   const [text, setText] = useState('');
-  const [sources, setSources] = useState<string[]>([]);
-  const [source, setSource] = useState('');
+  const [book, setBook] = useState<string>('');
+  const [chapter, setChapter] = useState<string>('');
+  const [verse, setVerse] = useState<string>('');
+  const [title, setTitle] = useState<string>('');
+  const [url, setUrl] = useState<URL | null>(null);
+  const [bibleSources, setBibleSources] = useState<BibleSource[]>([]);
+  const [urlSources, setUrlSources] = useState<UrlSource[]>([]);
   const [showClaimReliability, setShowClaimReliability] = useState<boolean[]>([]);
   const [claimArray, setClaimArray] = useState<ClaimArray[]>([]);
+
+  const [previousStaffReview, setPreviousStaffReview] = useState<IStaffVideoReview>();
+  const [isExistingReviewFetched, setIsExistingReviewFetched] = useState(false);
+
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
+  const [staffVideoUrl, setStaffVideoUrl] = useState('');
 
   const [showMissingFields, setShowMissingFields] = useState<string[]>([]);
   const [showPreviewReview, setShowPreviewReview] = useState(false);
+  const [staffReview, setStaffReview] = useState<IStaffVideoReview>();
   const router = useRouter();
   //console.log("router.query:", router.query);
 
@@ -68,6 +92,13 @@ const VideoId = () => {
   const videoid = parsedQuery.videoId
   //console.log("videoUrl:", videoUrl);
   //const { videoId: {video: videoUrl} } = router.query;
+  const [showNavBar, setShowNavBar] = useState(false);
+
+  useEffect(() => {
+     setTimeout(() => {
+       setShowNavBar(true);
+     }, 1000)
+   }, [])
 
   const toolbarOptions = [
     ['bold', 'italic', 'underline', 'strike'],        // toggled buttons
@@ -135,7 +166,7 @@ const VideoId = () => {
     const pendingVideo = await client.fetch(`*[_id == '${videoid}'][0]{
       videoUrl,
       isVideoReliable {
-        staffReviews
+        staffReviewReferences
       },
       cues,
       userSources,
@@ -170,34 +201,62 @@ const VideoId = () => {
     if (!video) {
       fetchVideo()
     }
-  })
+    if (!isExistingReviewFetched) {
+      fetchReview()
+    }
+  }, [])
 
-  const handleSourceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-
-    setSource(value);
+  const submitBibleSource = () => {
+    if (book !== '' && chapter !== null && verse !== '') {
+      setBibleSources(prevSources => [...prevSources, {book: book, chapter: chapter, verse: verse}])
+      setBook('');
+      setChapter('');
+      setVerse('');
+    }
   }
 
-  const submitSource = () => {
-    if (source !== '') {
-      setSources(prevSources => [...prevSources, source])
-      setSource('');
+  const submitUrlSource = () => {
+    if (title !== '' && url !== null) {
+      setUrlSources(prevSources => [...prevSources, {title: title, url: url}])
+      setTitle('');
+      setUrl(null);
     }
   }
 
   useEffect(() => {
-    console.log('sources:', sources);
-  }, [sources])
+    console.log('bibleSources:', bibleSources);
+  }, [bibleSources])
 
-  const staffReview = {
-    videoId: video ? video._id : '',
-    reviewedBy: reviewer,
-    chosenVideoReliability: chosenVideoReliability,
-    text: text,
-    sources: sources,
-    claimArray: claimArray,
+  useEffect(() => {
+    console.log('urlSources:', urlSources);
+  }, [urlSources])
+
+  const fetchReview = async() => {
+    if (userProfile?._id && video) {
+      const review = await client.fetch(`*[_type == 'staffVideoReview' && reviewedVideoId == '${videoId}' && reviewedBy._id == '${userProfile._id}']`)
+
+      setBibleSources(review.bibleSources);
+      setUrlSources(review.urlSources);
+      setText(review.text);
+      setChosenVideoReliability(review.chosenVideoReliability);
+      setStaffVideoUrl(review.staffVideoUrl ?? '')
+      // Map over video claims and create an updated claim array
+      const updatedClaimArray = video.claims.map((videoClaim, index) => {
+        const reliability = review?.claimsReliability[videoClaim.claim] || ''; // Get reliability from review or set default value
+      
+        return {
+          index,
+          claim: videoClaim.claim,
+          reliability,
+        };
+      });
+      
+      setClaimArray(updatedClaimArray);
+      setIsExistingReviewFetched(true);
+      return review;
+    }
   }
-
+  
   const handleShowEditClaim = (claimIndex: number) => {
     console.log('claimIndex:', claimIndex);
   
@@ -214,7 +273,6 @@ const VideoId = () => {
     // Update the state with the new array
     setShowClaimReliability(updatedShowClaimReliability);
   };
-  
   
   const handleReliabilityChange = (claimIndex: number, claim: string, reliability: string) => {
     console.log("newClaim value at:", claimIndex, reliability);
@@ -240,7 +298,7 @@ const VideoId = () => {
   useEffect(() => {
     if (claimArray.length === 0) {
       console.log("empty claimarray");
-      const newClaims = video?.claims.map((claim, index) => ({
+      const newClaims = video?.claims?.map((claim, index) => ({
         index: index,
         claim: claim.claim,
         reliability: ''
@@ -252,11 +310,11 @@ const VideoId = () => {
   }, [video]);
 
   const handlePreview = () => {
-    // if (text === '') {
-    //   setShowMissingFields(prevMissing => [...prevMissing, 'text'])
-    // }
-    // if (sources.length === 0) {
-    //   setShowMissingFields(prevMissing => [...prevMissing, 'sources'])
+    if (text === '') {
+      setShowMissingFields(prevMissing => [...prevMissing, 'text'])
+    }
+    // if (bibleSources.length === 0) {
+    //   setShowMissingFields(prevMissing => [...prevMissing, 'bibleSources'])
     // }
     if (claimArray.some((claim) => claim.reliability === '')) {
       setShowMissingFields(prevMissing => [...prevMissing, 'claimsArray'])
@@ -264,15 +322,42 @@ const VideoId = () => {
     if (chosenVideoReliability === '') {
       setShowMissingFields(prevMissing => [...prevMissing, 'chosenVideoReliability'])
     }
-    if (claimArray.some((claim) => claim.reliability !== '') || chosenVideoReliability !== '') {
+    if (claimArray.some((claim) => claim.reliability !== '') && chosenVideoReliability !== '' && text !== '') {
       setShowMissingFields([])
-      setShowPreviewReview(true)
+      if (previousStaffReview && userProfile && video) {
+        const staffReviewObject = {
+          _id: previousStaffReview._id,
+          reviewedVideo: {
+            _ref: video._id
+          },
+          reviewedBy: {
+            _ref: userProfile._id
+          },
+          chosenVideoReliability: chosenVideoReliability,
+          claimsReliability: claimArray.map((claim) => claim.reliability),
+          text: text,
+          bibleSources: bibleSources ?? [],
+          urlSources: urlSources ?? [],
+          staffVideoUrl: staffVideoUrl,
+          isPending: true
+        }
+      
+        setStaffReview(staffReviewObject)
+        setShowPreviewReview(true)
+      }
     }
   }
 
-  const isMissing = text === '' || sources.length === 0 || claimArray.some((claim) => claim.reliability === '') || chosenVideoReliability === ''
+  // const isMissing = text === '' || sources.length === 0 || claimArray.some((claim) => claim.reliability === '') || chosenVideoReliability === ''
   return (
     <>
+      {showNavBar ? (
+        <NavBar />
+      ) : (
+        <div style={{height: 19, width: '100vw'}}>
+
+        </div>
+      )}
       {!showPreviewReview ? (
         <>
           <button
@@ -300,9 +385,12 @@ const VideoId = () => {
             Unsure
           </button>
           <button
-            onClick={() => setShowPreviewReview(true)}
-            disabled={text === '' || sources.length === 0 || claimArray.some((claim) => claim.reliability === '') || chosenVideoReliability === ''}
-            style={{width: 100, height: 50, backgroundColor: 'white', fontSize: 20, color: 'black', opacity: text === '' || sources.length === 0 || claimArray.some((claim) => claim.reliability === '') || chosenVideoReliability === '' ? 0.5 : 1 }}
+            onClick={() => {
+
+              handlePreview()
+            }}
+            disabled={text === '' || bibleSources.length === 0 || claimArray.some((claim) => claim.reliability === '') || chosenVideoReliability === ''}
+            style={{width: 100, height: 50, backgroundColor: 'white', fontSize: 20, color: 'black', opacity: text === '' || bibleSources.length === 0 || claimArray.some((claim) => claim.reliability === '') || chosenVideoReliability === '' ? 0.5 : 1 }}
             
           >
             Preview Review
@@ -324,21 +412,38 @@ const VideoId = () => {
                   <form >
                     <input
                       style={{color: 'white', backgroundColor: 'black', textAlign: 'center', borderColor: 'white', borderWidth: 2, height: 24}}
-                      value={source}
-                      onChange={handleSourceChange}
+                      value={book}
+                      onChange={(e) => setBook(e.target.value)}
+                    >
+                    </input>
+                    <input
+                      style={{color: 'white', backgroundColor: 'black', textAlign: 'center', borderColor: 'white', borderWidth: 2, height: 24}}
+                      value={chapter}
+                      onChange={(e) => setChapter(e.target.value)}
+                    >
+                    </input>
+                    <input
+                      style={{color: 'white', backgroundColor: 'black', textAlign: 'center', borderColor: 'white', borderWidth: 2, height: 24}}
+                      value={verse}
+                      onChange={(e) => setVerse(e.target.value)}
                     >
                     </input>
                   </form>
                   <button
-                    onClick={() => submitSource()}
+                    onClick={() => submitBibleSource()}
                     style={{backgroundColor: 'white', padding: 5}}
                   >
-                    Submit
+                    Submit Bible Source
                   </button>
                 </div>
-                {sources?.map((source, index) => (
+                {bibleSources?.map((source, index) => (
                   <div style={{color: 'white', fontSize: 20}} key={index}>
-                    * {source}
+                    * {source.book} {source.chapter} : {source.verse ?? ''}
+                  </div>
+                ))}
+                {urlSources?.map((source, index) => (
+                  <div style={{color: 'white', fontSize: 20}} key={index} onClick={() => window.open(source.url, '_blank')}>
+                    * {source.title} 
                   </div>
                 ))}
               </div>
@@ -406,7 +511,7 @@ const VideoId = () => {
         <>
         <GiCancel onClick={() => setShowPreviewReview(false)} style={{fontSize: 30, color: 'red'}}/>
 
-        <PreviewReview staffReview={staffReview}/>
+        <PreviewReview staffReview={staffReview!}/>
         </>
       )}
     </>

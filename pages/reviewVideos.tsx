@@ -4,8 +4,11 @@ import { useRouter } from 'next/router';
 import querystring from 'querystring';
 import { v4 as uuidv4 } from 'uuid';
 
-import { IVideo, IUser } from '../../homie-website/types.js'
+
+import { IVideo, IUser, IStaffVideoReview } from '../../homie-website/types.js'
 import VideoCard from '../components/VideoCard';
+import useAuthStore from '../store/authStore';
+import NavBar from '../components/NavBar';
 
 declare global {
   interface HTMLVideoElement {
@@ -27,8 +30,9 @@ interface TranscriptionItem {
   start_time: number;
   end_time: number
 }
-const reviewer = 'diego'
+
 const ReviewVideos: React.FC<IProps> = ({ videos, users }: IProps) => {
+  const { userProfile, addUser, removeUser } = useAuthStore();
   const videoRefs = useRef<HTMLVideoElement[]>([]);
   const userRefs = useRef<UserElement[]>([]);
   const [currentRef, setCurrentRef] = useState<number>(0);
@@ -36,7 +40,7 @@ const ReviewVideos: React.FC<IProps> = ({ videos, users }: IProps) => {
   const [isVideoMuted, setIsVideoMuted] = useState(false);
   const [showSubtitles, setShowSubtitles] = useState(false);
   const [loop, setLoop] = useState(true);
-  const [videoDurations, setVideoDurations] = useState<Array<string | null>>([]);
+  const [videoDurations, setVideoDurations] = useState<Array<string>>([]);
 
   const currentVideo = videoRefs.current[currentRef];
   const currentUser = userRefs.current[currentRef];
@@ -56,6 +60,13 @@ const ReviewVideos: React.FC<IProps> = ({ videos, users }: IProps) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const router = useRouter();
+  const [showNavBar, setShowNavBar] = useState(false);
+
+  useEffect(() => {
+    setTimeout(() => {
+      setShowNavBar(true);
+    }, 1000)
+  }, [videos])
 
   const onVideoPress = async(index: number) => {
     console.log("index:", index)
@@ -126,13 +137,19 @@ const ReviewVideos: React.FC<IProps> = ({ videos, users }: IProps) => {
   }
 
   useEffect(() => {
-    if (videoDurations.length === 0) {
+    if (videos) {
       fetchVideoDurations()
     }
-  }, [])
+  }, [videos])
+
+  useEffect(() => {
+    if (videoDurations.some((duration) => duration === "NaN:NaN")) {
+      fetchVideoDurations()
+    }
+  }, [videoDurations])
 
   const fetchVideoDurations = async() => {
-    const promises = videos.map((video: IVideo, index: number) => handleVideoLoadedMetadata(index))
+    const promises = videos?.map((video: IVideo, index: number) => handleVideoLoadedMetadata(index))
     const durationsArray = await Promise.all(promises)
 
     console.log("promises:", promises);
@@ -157,8 +174,6 @@ const ReviewVideos: React.FC<IProps> = ({ videos, users }: IProps) => {
   };
   
   function playWord(startTime: number) {
-
-  
     if (!currentVideo) {
       return;
     }
@@ -213,7 +228,7 @@ const ReviewVideos: React.FC<IProps> = ({ videos, users }: IProps) => {
   }, [currentWordIndex, fullTranscription, currentRef]);
   
   useEffect(() => {
-    console.log("currentWordIndex:", currentWordIndex, videos[currentRef].cues[currentWordIndex]?.alternatives[0].content);
+    console.log("currentWordIndex:", currentWordIndex, videos[currentRef]?.cues[currentWordIndex]?.alternatives[0].content);
     console.log("currentWord:", currentWord);
 
   }, [currentWordIndex, currentWord]);
@@ -244,207 +259,240 @@ const ReviewVideos: React.FC<IProps> = ({ videos, users }: IProps) => {
   }, [highlightedTranscription])
 
   const createReview = async(videoId: string) => {
-    const currentReviews = await client.fetch(`*[_id == '${videoId}'][0]{
+    // await client.patch("drafts.3709A2D2-F3A1-441C-A38D-C75EC93C5DBD").set({isVideoReliable: {staffReviewReferences: {staffReviewReference: [], isPendingArray: []}}}).commit();
+
+    const video: IVideo = await client.fetch(`*[_id == '${videoId}'][0]{
       isVideoReliable {
-        staffReviews []
+        staffReviewReferences
       }
     }`)
-    console.log("currentReviews:", currentReviews);
+    console.log("video:", video);
 
-    if (currentReviews?.isVideoReliable?.staffReviews?.find((review: any) => review.reviewedBy === reviewer)) {
+    if (video?.isVideoReliable?.staffReviewReferences.staffReviewReference?.find((reference) => reference._ref === userProfile?._id)) {
       console.log("no need to create item")
       return;
     }
+    let newUUID = []
+    newUUID.push(uuidv4())
 
     const newReview = {
-      reviewedBy: reviewer,
+      _type: 'staffVideoReview',
+      _id: newUUID[0],
+      reviewedBy: {
+        _ref: userProfile?._id
+      },
+      reviewedVideoId: videoId,
+      chosenVideoReliability: '',
+      claimsReliability: [],
       text: '',
-      sources: [],
+      bibleSources: [],
+      urlSources: [],
+      videoUrl: '',
       isPending: true,
-      _key: uuidv4()
+    };
+
+    await client.create(newReview);
+
+    const newReference = {
+      _ref: `${newUUID[0]}`
     }
 
-    let newReviews = [newReview]
-    if (currentReviews.staffReviews?.length !== 0 && currentReviews.staffReviews !== null && currentReviews.staffReviews?.length !== undefined) {
-      newReviews = [
-        ...currentReviews,
-        newReview
+    let newReferences: IVideo["isVideoReliable"]["staffReviewReferences"]["staffReviewReference"] = [newReference]
+    if (video.isVideoReliable?.staffReviewReferences?.staffReviewReference?.length !== 0 && video.isVideoReliable?.staffReviewReferences?.staffReviewReference !== null && video.isVideoReliable?.staffReviewReferences?.staffReviewReference !== undefined) {
+      newReferences = [
+        ...video.isVideoReliable.staffReviewReferences.staffReviewReference,
+        newReference
       ]
     }
-    console.log("newReviews:", newReviews);
+    console.log("newReferences:", newReferences);
+
+    let newIsPendingArray = [true]
+    if (video.isVideoReliable.staffReviewReferences.isPendingArray.length !== 0 && video.isVideoReliable.staffReviewReferences.isPendingArray !== null && video.isVideoReliable.staffReviewReferences.isPendingArray !== undefined) {
+      newIsPendingArray = [
+        ...video.isVideoReliable.staffReviewReferences.isPendingArray,
+        true
+      ]
+    }
 
     const newIsVideoReliable = {
-      reliability: 'pending',
-      proof: [],
-      staffReviews: newReviews
+      reliability: video.isVideoReliable.reliability,
+      proof: video.isVideoReliable.proof,
+      staffReviewReferences: {
+        staffReviewReference: newReferences
+      },
+      isPendingArray: newIsPendingArray
     }
 
     await client.patch(videoId).set({isVideoReliable: newIsVideoReliable}).commit()
   }
+
+  const handlePush = async(isPending: any, video: IVideo) => {
+    if (!isPending) {
+      router.push(`/allStaffReviewedClaims/${video._id}`);
+     } else {
+      await createReview(video._id)
+      const videoObject = {
+        videoUrl: video.videoUrl,
+        videoId: video._id,
+      };
+      const videoParam = encodeURIComponent(JSON.stringify(videoObject));
+      router.push(`/videoReview/${videoParam}`);  
+    }
+  }
+
   return (
     <div style={{backgroundColor: 'black'}}>
-      <h3>
-      
-      </h3>
-      <div>
-          <h1 style={{color: 'white', fontSize: 30}}>
-            Videos waiting for review
-          </h1>
-          {videos.map((video, index) => {
-            const now = new Date();
-            const createdAt = new Date(video.createdAt);
-            const timeDifference = Math.floor((now.getTime() - createdAt.getTime()) / 1000); // Calculate time difference in seconds
-          
-            let timeAgo;
-          
-            if (timeDifference < 60) {
-              timeAgo = `${timeDifference} seconds`;
-            } else if (timeDifference < 3600) {
-              const minutes = Math.floor(timeDifference / 60);
-              timeAgo = `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
-            } else if (timeDifference < 86400) {
-              const hours = Math.floor(timeDifference / 3600);
-              const remainingMinutes = Math.floor((timeDifference % 3600) / 60);
-              timeAgo = `${hours} ${hours === 1 ? 'hour' : 'hours'} and ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
-            } else {
-              const days = Math.floor(timeDifference / 86400);
-              const hours = Math.floor((timeDifference % 86400) / 3600);
-              timeAgo = `${days} ${days === 1 ? 'day' : 'days'} and ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
-            }
-            
-            const hasReviewerReviewed = video?.isVideoReliable?.staffReviews
-            ? video.isVideoReliable.staffReviews.find(review => review.reviewedBy === reviewer)
-            : undefined;
-          
-            const isPending = hasReviewerReviewed ? hasReviewerReviewed.isPending : undefined;
-
-            const nonPendingStaffReviews = video?.isVideoReliable?.staffReviews?.filter(
-              (staffReview) => staffReview.isPending !== true
-            );
-            
-            const remainingReviews = Math.max(10 - (nonPendingStaffReviews?.length || 0), 0);
-            
-            return (
-              <div key={video._id} style={{display: 'flex', flexDirection: 'row'}}>
-                <div style={{display: 'flex', flexDirection: 'column', height: 300}}>
-                {/* <VideoCard video={videos[currentRef]} user={users[currentRef]} /> */}
-
-                  <button onClick={() => onVideoPress(index)}>
-                    <video
-                      id={video._id}
-                      loop={loop}
-                      ref={(el) => {
-                        if (el) {
-                          // Attach the video element to the currentVideo array using the currentRef index
-                          videoRefs.current[index] = el;
-                        }
-                      }}
-                      src={video.videoUrl ? video.videoUrl : ''}
-                      data-playing={playing}
-                      style={{width: 114, height: 200, backgroundColor: 'black'}}
-                      onTimeUpdate={updateProgress}
-                      //onLoadedMetadata={() => handleVideoLoadedMetadata(index)}
-                    />
-                  </button>
-                  <div style={{color: 'white', alignSelf: 'center', fontSize: 25}}>
-                  {videoDurations[index]}
-                  </div>
-                </div>
-                <div style={{display: 'flex', flexDirection: 'column'}}>
-                  <div style={{display: 'flex', flexDirection: 'row', alignSelf: 'center'}}>
-                    <form style={{width: 200, height: 15, alignSelf: 'center', paddingBottom: 5}}>
-                      <input 
-                        style={{width: 200, height: 15, alignSelf: 'center', textAlign: 'center', backgroundColor: 'black', borderColor: 'white', borderWidth: 2, color: 'white'}}
-                        onChange={handleSearchTranscription}
-                    >
-
-                      </input>
-                    </form>
-                    <p style={{fontSize: 20, position: 'absolute', top: 54, right: 280, color: '#F6E05E'}}>{highlightedTranscription.length}</p>
-                  </div>
-                  <div style={{fontSize: 17, width: 400, height: 100, overflow: 'auto'}}>
-                    {video.cues.map((item, idx) => {
-                      const matchedWord = highlightedTranscription.includes(item.alternatives[0].content);
-                      const isCurrentWord = idx === currentWordIndex;
-                      return (
-                        <span
-                          key={idx}
-                          onClick={() => playWord(item.start_time)}
-                          style={{
-                            cursor: "pointer",
-                            color: isCurrentWord || matchedWord ? 'black' : 'white',
-                            backgroundColor: isCurrentWord ? 'rgb(0, 183, 255)' : matchedWord ? '#F6E05E' : 'transparent',        
-                          }}
-                          className="hover:text-rgb(0, 183, 255) text-white"
-                        >
-                          {item.alternatives[0].content}{" "}
-                        </span>
-                      );
-                    }
-                    )}
-                  </div>
-                  <div style={{color: 'white', fontSize: 25}}>
-                    {video.claims?.length} Claims
-                    <div style={{color: 'white', fontSize: 20, width: 400, height: 100, overflow: 'auto'}}>
-                    {video?.claims?.map((claim) => (
-                      <div style={{paddingBottom: 15}}>
-                        {claim.claim}
-                      </div>
-                    ))}
-                    </div>
-                  </div>
-                </div>
-                <div style={{display: 'flex', flexDirection: 'column', width: 100, height: 200}}>
-                  <div style={{}}>
-                    <button
-                      onClick={async() => {
-                        await createReview(video._id)
-                        const videoObject = {
-                          videoUrl: video.videoUrl,
-                          videoId: video._id,
-                        };
-                        const videoParam = encodeURIComponent(JSON.stringify(videoObject));
-                        router.push(`/review/${videoParam}`);                  
-                        // <VideoId video={video} user={users[currentRef]}/>
-                      }}
-                      style={{
-                        width: 100,
-                        height: 50,
-                        fontSize: 20,
-                        backgroundColor: isPending !== undefined ? (isPending ? 'yellow' : 'rgb(0, 183, 255)') : 'white'
-                      }}
-                      className='hover:bg-blue'
-                      disabled={!isPending}
-                    >
-                      {isPending !== undefined ? 
-                      (isPending ? 'Continue': 'Done') : 'Review'}
-                      
-                    </button>
-                    
-                  </div>
-                  <div style={{display: 'flex', flexDirection: 'column'}}>
-                    <div style={{}}>
-                      <p style={{fontSize: 20, color: 'white', textAlign: 'center'}}>
-                      {remainingReviews} more reviews left
-                      </p>
-                    </div>
-                    <div style={{ color: 
-                      timeDifference > 21600 ? 'red' :
-                      timeDifference > 3600 ? 'orange' :
-                      timeDifference > 1800 ? 'green' :
-                      'green'
-                    }}
-                    >
-                      {timeAgo} ago
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            )
-          })}
+      {showNavBar ? (
+        <NavBar />
+      ) : (
+        <div style={{height: 19, width: '100vw'}}>
+        </div>
+      )}
+      <div style={{color: 'white', fontSize: 30}}>
+        Videos waiting for review
       </div>
-    </div>   
+      {videos.map((video: IVideo, index) => {
+        const now = new Date();
+        const createdAt = new Date(video.createdAt);
+        const timeDifference = Math.floor((now.getTime() - createdAt.getTime()) / 1000); // Calculate time difference in seconds
+        let timeAgo;
+      
+        if (timeDifference < 60) {
+          timeAgo = `${timeDifference} seconds`;
+        } else if (timeDifference < 3600) {
+          const minutes = Math.floor(timeDifference / 60);
+          timeAgo = `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+        } else if (timeDifference < 86400) {
+          const hours = Math.floor(timeDifference / 3600);
+          const remainingMinutes = Math.floor((timeDifference % 3600) / 60);
+          timeAgo = `${hours} ${hours === 1 ? 'hour' : 'hours'} and ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
+        } else {
+          const days = Math.floor(timeDifference / 86400);
+          const hours = Math.floor((timeDifference % 86400) / 3600);
+          timeAgo = `${days} ${days === 1 ? 'day' : 'days'} and ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+        }
+        
+        const hasReviewerReviewed = video.isVideoReliable?.staffReviewReferences?.staffReviewReference?.find(reference => reference._ref === userProfile?._id);
+        console.log('hasReviewerReviewed:', hasReviewerReviewed)
+
+        const referenceIndex = video.isVideoReliable?.staffReviewReferences?.staffReviewReference?.findIndex((reference) => reference._ref === userProfile?._id)
+        console.log('referenceIndex:', referenceIndex)
+
+        const isPending = hasReviewerReviewed ? video.isVideoReliable?.staffReviewReferences?.isPendingArray[referenceIndex] : undefined;
+        console.log('isPending:', isPending)
+
+        const nonPendingStaffReviews = video?.isVideoReliable?.staffReviewReferences?.isPendingArray?.filter(
+          (isPending) => isPending === false
+        );
+        console.log('nonPendingStaffReviews:', nonPendingStaffReviews)
+
+        const remainingReviews = Math.max(10 - (nonPendingStaffReviews?.length || 0), 0);
+        
+        return (
+          <div key={video._id} style={{display: 'flex', flexDirection: 'row'}}>
+            <div style={{display: 'flex', flexDirection: 'column', height: 300}}>
+              <button onClick={() => onVideoPress(index)}>
+                <video
+                  id={video._id}
+                  loop={loop}
+                  ref={(el) => {
+                    if (el) {
+                      // Attach the video element to the currentVideo array using the currentRef index
+                      videoRefs.current[index] = el;
+                    }
+                  }}
+                  src={video.videoUrl ? video.videoUrl : ''}
+                  data-playing={playing}
+                  style={{width: 114, height: 200, backgroundColor: 'black'}}
+                  onTimeUpdate={updateProgress}
+                  //onLoadedMetadata={() => handleVideoLoadedMetadata(index)}
+                />
+              </button>
+              <div style={{color: 'white', alignSelf: 'center', fontSize: 25}}>
+              {videoDurations[index]}
+              </div>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <div style={{display: 'flex', flexDirection: 'row', alignSelf: 'center'}}>
+                <form style={{width: 200, height: 15, alignSelf: 'center', paddingBottom: 5}}>
+                  <input 
+                    style={{width: 200, height: 15, alignSelf: 'center', textAlign: 'center', backgroundColor: 'black', borderColor: 'white', borderWidth: 2, color: 'white'}}
+                    onChange={handleSearchTranscription}
+                >
+                  </input>
+                </form>
+                <p style={{fontSize: 20, position: 'absolute', top: 54, right: 280, color: '#F6E05E'}}>{highlightedTranscription.length}</p>
+              </div>
+              <div style={{fontSize: 17, width: 400, height: 100, overflow: 'auto'}}>
+                {video.cues.map((item, idx) => {
+                  const matchedWord = highlightedTranscription.includes(item.alternatives[0].content);
+                  const isCurrentWord = idx === currentWordIndex;
+                  return (
+                    <span
+                      key={idx}
+                      onClick={() => playWord(item.start_time)}
+                      style={{
+                        cursor: "pointer",
+                        color: isCurrentWord || matchedWord ? 'black' : 'white',
+                        backgroundColor: isCurrentWord ? 'rgb(0, 183, 255)' : matchedWord ? '#F6E05E' : 'transparent',        
+                      }}
+                      className="hover:text-rgb(0, 183, 255) text-white"
+                    >
+                      {item.alternatives[0].content}{" "}
+                    </span>
+                  );
+                }
+                )}
+              </div>
+              <div style={{color: 'white', fontSize: 25}}>
+                {video.claims?.length} Claims
+                <div style={{color: 'white', fontSize: 20, width: 400, height: 100, overflow: 'auto'}}>
+                {video?.claims?.map((claim) => (
+                  <div style={{paddingBottom: 15}}>
+                    {claim.claim}
+                  </div>
+                ))}
+                </div>
+              </div>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', width: 100, height: 200}}>
+              <div style={{}}>
+                <button
+                  onClick={async() => handlePush(isPending, video)}
+                  style={{
+                    width: 100,
+                    height: 50,
+                    fontSize: 20,
+                    backgroundColor: isPending !== undefined ? (isPending ? 'yellow' : 'rgb(0, 183, 255)') : 'white'
+                  }}
+                  className='hover:bg-blue'
+                  //disabled={!isPending}
+                >
+                  {isPending !== undefined ? 
+                  (isPending ? 'Continue': 'Done') : 'Review'}
+                </button>
+              </div>
+              <div style={{display: 'flex', flexDirection: 'column'}}>
+                <div style={{}}>
+                  <p style={{fontSize: 20, color: 'white', textAlign: 'center'}}>
+                  {remainingReviews} more reviews left
+                  </p>
+                </div>
+                <div style={{ color: 
+                  timeDifference > 21600 ? 'red' :
+                  timeDifference > 3600 ? 'orange' :
+                  timeDifference > 1800 ? 'green' :
+                  'green'
+                }}
+                >
+                  {timeAgo} ago
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   );
 }
 
@@ -454,7 +502,7 @@ export async function getServerSideProps() {
   const pendingVideos = await client.fetch(`*[_type == 'video' && isVideoReliable.reliability == 'pending' && godKeywords.length != 0]{
     videoUrl,
     isVideoReliable {
-      staffReviews
+      staffReviewReferences
     },
     cues,
     claims,
@@ -470,7 +518,7 @@ export async function getServerSideProps() {
 
   // const users = await Promise.all(userPromises);
 
-  console.log("pendingVideos:", pendingVideos);
+  console.log("pendingVideos:", JSON.stringify(pendingVideos, null, 2));
   //console.log("users:", users);
 
   const props = {
@@ -484,4 +532,3 @@ export async function getServerSideProps() {
 };
 
 
-  

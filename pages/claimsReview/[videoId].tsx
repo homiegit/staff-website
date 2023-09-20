@@ -5,11 +5,13 @@ import { client } from '../../../homie-website/utils/client'
 
 import { IVideo, IUser } from '../../../homie-website/types.js'
 import VideoCard from '../../components/VideoCard';
+import useAuthStore from '../../store/authStore';
 
 import { GiCancel } from 'react-icons/gi'
 import { GrAddCircle } from 'react-icons/gr'
 import { FaCheck } from 'react-icons/fa'
 import { HiExclamationCircle } from 'react-icons/hi'
+import NavBar from '../../components/NavBar';
 
 interface IProps {
   video: IVideo
@@ -26,9 +28,9 @@ interface ClaimsArray {
   claim: string;
 }
 
-const reviewer = 'diego'
-
 const VideoId = () => {
+  const { userProfile, addUser, removeUser } = useAuthStore();
+
   const [video, setVideo] = useState<IVideo | null>(null);
   const [user, setUser] = useState<IUser | null>(null);
 
@@ -63,12 +65,20 @@ const VideoId = () => {
   const videoid = parsedQuery.videoId
   //console.log("videoUrl:", videoUrl);
   //const { videoId: {video: videoUrl} } = router.query;
+  const [showNavBar, setShowNavBar] = useState(false);
+
+  useEffect(() => {
+    setTimeout(() => {
+      setShowNavBar(true);
+    }, 1000)
+  }, [])
+
 
   const fetchVideo = async() => {
     const pendingVideo = await client.fetch(`*[_id == '${videoid}'][0]{
       videoUrl,
       cues,
-      claims,
+      allClaims,
       _id,
       createdAt,
       postedBy
@@ -106,7 +116,7 @@ const VideoId = () => {
   useEffect(() => {
     if (claimsArray.length === 0) {
       console.log("empty claimsarray");
-      const newClaims = video?.allClaims?.finalClaims?.map((claim, index) => ({
+      const newClaims = video?.allClaims?.claimsInProgress?.map((claim, index) => ({
         index: index,
         claim: claim.claim,
       }));
@@ -118,7 +128,9 @@ const VideoId = () => {
 
   const submitClaimsReview = async() => {
     const newStaffClaimsReview = {
-      reviewedBy: reviewer,
+      reviewedBy: {
+        _ref: userProfile?._id
+      },
       claims: claimsArray.map((claim) => claim.claim),
       isPending: false,
       _key: uuidv4()
@@ -127,9 +139,9 @@ const VideoId = () => {
 
     let newStaffClaimsReviews = [newStaffClaimsReview]
   
-    if (video?.allClaims.staffReviewedClaims.length !== 0 && video?.allClaims.staffReviewedClaims !== null && video) {
+    if (video?.allClaims?.staffReviewedClaims.length !== 0 && video?.allClaims?.staffReviewedClaims !== null && video) {
   
-      const previousStaffClaimsReviews = video.allClaims?.staffReviewedClaims?.filter((review: any) => review.reviewedBy !== reviewer);
+      const previousStaffClaimsReviews = video?.allClaims?.staffReviewedClaims?.filter((review: any) => review.reviewedBy?._ref !== userProfile?._id);
       console.log("previousStaffClaimsReviews:", previousStaffClaimsReviews);
   
       if (previousStaffClaimsReviews.length !== 0) {
@@ -143,8 +155,8 @@ const VideoId = () => {
     if (video) {
       const claimsObject = {
         chatGptClaims: video.allClaims?.chatGptClaims,
-        finalClaims: video.allClaims?.finalClaims,
-        staffReviewedClaims: newStaffClaimsReview
+        claimsInProgress: video.allClaims?.claimsInProgress,
+        staffReviewedClaims: newStaffClaimsReviews
       }
 
       await client.patch(video._id).set({claims: claimsObject}).commit();
@@ -202,7 +214,13 @@ const VideoId = () => {
   ));
 
   return (
-    <>
+    <div style={{backgroundColor: 'black', width: '100vw', height: '100vh'}}>
+      {showNavBar ? (
+        <NavBar />
+      ) : (
+        <div style={{height: 19, width: '100vw'}}>
+        </div>
+      )}
       {!showPreviewReview ? (
         <>
           
@@ -219,27 +237,25 @@ const VideoId = () => {
               <VideoCard video={video} user={user} />
             )}
             </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}> 
-              <div style={{color: 'white', textAlign: 'center', fontSize: 25, borderColor: 'white', borderWidth: 2, backgroundColor: 'black', width: 600}}>
-                ChatGPT Claims 
-              </div>
               <div style={{display: 'flex', flexDirection: 'row', backgroundColor: 'black'}} >
                 <div style={{display: 'flex', flexDirection: 'column'}}>
                   {forms}
-                  <button style={{color: 'white', backgroundColor: 'white', fontSize: 20, width: 175, alignSelf: 'center' }}>
+                  <button style={{color: 'white', backgroundColor: 'white', fontSize: 20, alignSelf: 'center' }}>
                     <GrAddCircle onClick={() => handleAddClaim()}  />
                   </button>
                 </div>
-                <div style={{display: 'flex', flexDirection: 'column', overflow: 'auto'}}>
-                  {video?.allClaims?.chatGptClaims?.map((claim, i) => 
-                    <div style={{color: 'white', fontSize: 15}}>
-                      {claim}
-                    </div>
+                <div style={{display: 'flex', flexDirection: 'column'}}> 
+                  <div style={{color: 'white', textAlign: 'center', fontSize: 25, borderColor: 'white', borderWidth: 2, backgroundColor: 'black'}}>
+                    ChatGPT Claims 
+                  </div>
+                  {video?.allClaims?.chatGptClaims?.map((claim, index) => 
+                  <div key={index} style={{color: 'white', fontSize: 20}}>
+                    {claim}
+                  </div>
                   )}
                 </div>
               </div>
             </div>
-          </div>
         </>
       ) : (
         <>
@@ -248,7 +264,7 @@ const VideoId = () => {
         {/* <PreviewReview staffReview={staffReview}/> */}
         </>
       )}
-    </>
+    </div>
   )
 };
 

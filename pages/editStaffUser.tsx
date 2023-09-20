@@ -32,7 +32,7 @@ const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}:
     setTimeout(() => {
       setShowNavBar(true);
     }, 1000)
-  }, [])
+  }, [staffUsers])
 
   const handleUserName = (text: string) => {
     setEmail(text);
@@ -80,17 +80,16 @@ const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}:
     }
   }
 
-const handleJobTitle = (text: string, idx: number) => {
-  setJobTitles((prevTitles) => {
-    const updatedTitles = [...prevTitles];
-    updatedTitles[idx] = text;
-    return updatedTitles;
-  });
-};
+  const handleJobTitle = async(text: string, idx: number) => {
+    setJobTitles((prevTitles) => {
+      const updatedTitles = [...prevTitles];
+      updatedTitles[idx] = text;
+      return updatedTitles;
+    });
+  };
 
   const handleAddJobTitle = () => {
     setJobTitles((prevTitles) => [...prevTitles, '' ]);
-
   }
 
   const handleDeleteJobTitle = (idx: number) => {
@@ -102,11 +101,22 @@ const handleJobTitle = (text: string, idx: number) => {
 
   useEffect(() => {
     console.log('jobTitles:', jobTitles);
+  }, [jobTitles]);
 
-  }, [jobTitles])
+  useEffect(() => {
+    console.log('selectedUser:', selectedUser);
+  }, [selectedUser]);
+
+  useEffect(() => {
+    if (selectedUser) {
+    setJobTitles(selectedUser.jobTitles.map((title) => title));
+    } else {
+      setJobTitles([]);
+    }
+  }, [selectedUser])
 
   const inputs = jobTitles.map((title, i) => (
-    <div key={`${title}--${i}`} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+    <div key={i} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
       <input value={title} onChange={(e) => handleJobTitle(e.target.value, i)} placeholder='Job Title'/> 
       <button style={{ color: 'transparent', backgroundColor: 'transparent'}}>
         <GiCancel onClick={() => handleDeleteJobTitle(i)} style={{ color: 'red' }} />
@@ -119,9 +129,14 @@ const handleJobTitle = (text: string, idx: number) => {
 
   return(
     <div style={{width: '100vw', height: '100vh', backgroundColor: 'black', display: 'flex', flexDirection: 'column'}}>
-      {showNavBar && (
-        <>
-      <NavBar />
+      <>
+      {showNavBar ? (
+        <NavBar />
+      ) : (
+        <div style={{height: 19, width: '100vw'}}>
+
+        </div>
+      )}
       <div style={{display: 'flex', flexDirection: 'column'}}>
 
         <div style={{display: 'flex', flexDirection: 'row'}}>
@@ -133,7 +148,7 @@ const handleJobTitle = (text: string, idx: number) => {
               </input>
               <input onChange={(e) => handlePhoneNumber(e.target.value)} placeholder='Phone Number'>
               </input>
-            <button onClick={() => createStaffUser()}>
+            <button onClick={() => createStaffUser()} disabled={userName === '' || phoneNumber === ''}>
               Create
             </button>
           </div>
@@ -145,7 +160,7 @@ const handleJobTitle = (text: string, idx: number) => {
               </input> */}
               {inputs}
                 <AiFillPlusSquare style={{color: 'cornflowerblue', fontSize: 20}} onClick={() => handleAddJobTitle()}/>
-            <button onClick={() => editStaffJobTitles()}>
+            <button onClick={() => editStaffJobTitles()} disabled={jobTitles.length === 0 || selectedUser?.jobTitles.some((title, i) => title === jobTitles[i])}>
               Edit
             </button>
           </div>
@@ -211,7 +226,7 @@ const handleJobTitle = (text: string, idx: number) => {
         )}
       </div>
       </>
-      )}
+      
     </div>
       
   )
@@ -221,10 +236,11 @@ export default EditStaffUser;
 
 export async function getServerSideProps() {
   const allStaffUsers = await client.fetch(`*[_type == 'staff']`);
+  console.log('allStaffUsers:', allStaffUsers)
   
-  const videosReviewedByStaff = await client.fetch(`*[_type == 'video' && isVideoReliable.staffReviews.length != 0]{
+  const videosReviewedByStaff = await client.fetch(`*[_type == 'video' && isVideoReliable.staffReviewReferences.staffReviewReference.length != 0]{
     isVideoReliable{
-      staffReviews
+      staffReviewReferences
     }
   }`);
 
@@ -242,7 +258,7 @@ export async function getServerSideProps() {
   let claimReviewers: any = [];
 
   videosReviewedByStaff?.forEach((video: IVideo) => {
-    const videoReviewsWithinOneWeek = video.isVideoReliable?.staffReviews.filter((review: any) => {
+    const videoReviewsWithinOneWeek = video.isVideoReliable?.staffReviewReferences.isPendingArray.filter((review: any) => {
       const reviewDate = new Date(review._createdAt);
       return reviewDate >= oneWeekAgo; // Check if the review date is on or after one week ago
     });

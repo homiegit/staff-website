@@ -3,27 +3,21 @@ import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/router';
 import { client } from '../../../homie-website/utils/client'
 
-import { IVideo, IUser } from '../../../homie-website/types.js'
+import { IVideo, IUser, IStaffVideoReview } from '../../../homie-website/types.js'
 
 import { GiCancel } from 'react-icons/gi'
 import { FaCheck } from 'react-icons/fa'
 import { HiExclamationCircle } from 'react-icons/hi'
 import { ClaimArray } from './[videoId]';
+import { create } from 'lodash';
 
-interface StaffReview {
-  staffReview: {
-    videoId: string;
-    reviewedBy: string;
-    chosenVideoReliability: string;
-    text: string;
-    sources: string[];
-    claimArray: ClaimArray[];
-  }
+interface IProps {
+  staffReview: IStaffVideoReview
 }
-const reviewer = 'diego'
 
-const PreviewReview = (staffReview: StaffReview) => {
+const PreviewReview = ({staffReview}: IProps) => {
   const router = useRouter()
+  const [video, setVideo] = useState<IVideo>()
 
   // const submitReview = async() => {
   //     await client.patch(staffReview.staffReview.videoId).set({isVideoReliable: {
@@ -35,83 +29,74 @@ const PreviewReview = (staffReview: StaffReview) => {
 
   // }
 
+  const fetchVideo = async() => {
+    const video = await client.fetch(`*[_id == '${staffReview.reviewedVideo._ref}'][0]{
+      isVideoReliable {
+        staffReviewReferences
+      },
+      claims
+    }`)
+    console.log("video:", video);
+    setVideo(video)
+    return video
+  }
+
   const submitReview = async() => {
 
     console.log('staffReview:', staffReview);
-
-    const video = await client.fetch(`*[_id == '${staffReview.staffReview.videoId}'][0]{
-      isVideoReliable {
-        staffReviews[]
-      }
-    }`)
-    console.log("video:", video);
-
-    const claimsReliability = staffReview.staffReview.claimArray.map((claim) => claim.reliability);
-
+    const video = await fetchVideo()
 
     const newStaffReview = {
-      reviewedBy: staffReview.staffReview.reviewedBy,
-      text: staffReview.staffReview.text ?? '',
-      sources: staffReview.staffReview.sources ?? [],
-      claimsReliability: claimsReliability,
+      _id: staffReview._id,
+      reviewedBy: staffReview.reviewedBy,
+      reviewedVideo: staffReview.reviewedVideo,
+      chosenVideoReliability: staffReview.chosenVideoReliability,
+      claimsReliability: staffReview.claimsReliability.map((reliability) => reliability),
+      text: staffReview.text ?? '',
+      bibleSources: staffReview.bibleSources ?? [],
+      urlSources: staffReview.urlSources ?? [],
       isPending: 'false',
-      _key: uuidv4()
-
-    } 
-
-    let newStaffReviews = [newStaffReview]
-    if (
-      video?.isVideoReliable?.staffReviews?.length !== 0 &&
-      video?.isVideoReliable?.staffReviews !== null
-      ) {
-        // Filter out reviews by the same reviewer
-        const previousStaffReviews = video?.isVideoReliabile?.staffReviews?.filter((review: any) => review.reviewedBy === reviewer);
-        console.log("previousStaffReviews:", previousStaffReviews);
-
-        if (previousStaffReviews?.length !== 0) {
-          newStaffReviews = [...previousStaffReviews, newStaffReview];
-        }
     }
-    
-    console.log("newReviews:", newStaffReviews);
 
-    if (video) {
-      const newIsVideoReliable = {
-        reliability: video.isVideoReliable?.reliability,
-        proof: {
-          text: video.isVideoReliable?.proof?.text,
-          sources: video.isVideoReliable?.proof?.sources
-        },
-        staffReviews: newStaffReviews
-      }
-
-      await client.patch(staffReview.staffReview.videoId).set({isVideoReliable: newIsVideoReliable}).commit()
-
-      router.push(`/videoReview/allStaffReviews/${video._id}`)
-    }
+    await client.patch(staffReview._id).set(newStaffReview).commit();
   };
 
   return(
     <div>
       <div>
-        {staffReview.staffReview.chosenVideoReliability}
+        {staffReview.chosenVideoReliability}
       </div>
-      <div dangerouslySetInnerHTML={{ __html: staffReview.staffReview.text }}>
+      <div dangerouslySetInnerHTML={{ __html: staffReview.text }}>
       </div>
-      <div>
-        {staffReview.staffReview.sources}
-      </div>
-      <div>
-        {staffReview.staffReview.claimArray.map((claim) => 
-          <>
-            <div>
-              {claim.claim}
-            </div>
-            <div>
-              {claim.reliability}
-            </div>
-          </>
-        )}
+      {staffReview.bibleSources.map((source, index) => 
+        <div key={index}>
+          {source.book} {source.chapter} : {source.verse ?? ''}
+        </div>
+      )}
+      {staffReview.urlSources.map((source, index) => 
+        <div key={index} onClick={() => window.open(source.url, '_blank')}>
+          {source.title}
+        </div>
+      )}
+      <div style={{display: 'flex', flexDirection: 'column'}}>
+        <div>
+          {video?.claims.map((claim) => 
+            <>
+              <div>
+                {claim.claim}
+              </div>
+            </>
+          )}
+        </div>
+        <div>
+          {staffReview.claimsReliability.map((reliability) => 
+            <>
+              <div>
+                {reliability}
+              </div>
+            </>
+          )}
+        </div>
       </div>
       <button onClick={() => submitReview()}>
           Submit
