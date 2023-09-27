@@ -36,9 +36,14 @@ const NavBar = () => {
         </button>
       )}
       {userProfile?.jobTitles?.includes('owner' || 'administrator') && (
-        <button onClick={() => router.push('/editStaffUser')} style={{border: 2, borderColor: 'white', color: 'black', fontSize: 15}}>
-          Edit Staff User
-        </button>
+        <>
+          <button onClick={() => router.push('/editStaffUser')} style={{border: 2, borderColor: 'white', color: 'black', fontSize: 15}}>
+            Edit Staff User
+          </button>
+          <button onClick={() => router.push('/editDocument')} style={{border: 2, borderColor: 'white', color: 'black', fontSize: 15}}>
+            Edit Document
+          </button>
+        </>
       )}
     </div>
   )

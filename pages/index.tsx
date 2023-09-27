@@ -151,7 +151,7 @@ const Home = () => {
         <div style={{color: 'blueviolet', fontSize: 30, textAlign: 'center'}}>
           Welcome Back {userProfile.userName}
         </div>
-      ) : (
+      ) : ( 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 500, height: 500}}>
           {wrongPassword && (
             <div style={{color: 'red', fontSize: 15}}>
