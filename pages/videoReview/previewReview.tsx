@@ -89,10 +89,10 @@ const PreviewReview = ({staffReview}: IProps) => {
           )}
         </div>
         <div>
-          {staffReview.claimsReliability.map((reliability) => 
+          {staffReview.claimsReliability.map((claim) => 
             <>
               <div>
-                {reliability}
+                {claim.reliability}
               </div>
             </>
           )}

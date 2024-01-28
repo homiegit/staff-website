@@ -51,7 +51,7 @@ const VideoIdAllStaffReviewedClaims = ({data}: IProps) => {
   }, [])
 
   useEffect(() => {
-    const array = data.video.allClaims.staffReviewedClaims.flatMap((review, reviewIndex) => {
+    const array = data.video.allClaims?.staffReviewedClaims?.flatMap((review, reviewIndex) => {
       return review.claims.map((claim, idx) => ({
         key: `${reviewIndex}-${idx}`, // Assign a unique key
         reviewedBy: {
@@ -107,32 +107,54 @@ const VideoIdAllStaffReviewedClaims = ({data}: IProps) => {
           <div style={{display: 'flex', flexDirection: 'column', width: '60vw', height: '100vh'}}>
             <VideoCard video={data.video} user={data.user}/>
             <div style={{display: 'flex', flexDirection: 'column'}}>
-              <div style={{color: 'white', fontSize: 30, padding: 0, alignSelf: 'center'}}>
-                Chat Gpt Claims
-                <div style={{ overflow: 'auto'}}>
-                  {data.video?.allClaims.chatGptClaims.map((claim, index) => (
-                    <div key={index} style={{color: 'white', fontSize: 20, padding: 5}}>
-                      {claim}
-                    </div>
-                  ))}
+              <div style={{display: 'flex', flexDirection: 'row'}}>
+
+                <div style={{color: 'white', fontSize: 30, padding: 0, alignSelf: 'center'}}>
+                  Chat Gpt Claims
+                  <div style={{ overflow: 'auto'}}>
+                    
+                    {data.video?.allClaims?.chatGptClaims?.length > 0 && (
+                    data.video?.allClaims?.chatGptClaims?.map((claim, index) => (claim.responses && (
+                      <>
+                      <p>{claim.responses.length}</p>
+                      <div key={index} style={{color: 'white', fontSize: 20, padding: 5}}>
+                        {claim.claim}
+                        {claim.responses[index]?.answer}
+                        {claim.responses[index]?.explanation}
+                      </div>
+                      </>
+                      )))
+                    )} 
+                  </div>
+                </div>
+                <div style={{color: 'white', fontSize: 30, padding: 0, alignSelf: 'flex-end'}}>
+                  {data.video?.allClaims?.chatGptClaims?.length > 0 && (
+                    data.video?.allClaims?.chatGptClaims?.map((claim, index) => (claim.responses && (
+                        <div key={index} style={{color: 'white', fontSize: 20, padding: 5}}>
+                          {claim.responses[index]?.sources}
+                        </div>
+                      )))
+                    )}
                 </div>
               </div>
               <div style={{color: 'white', fontSize: 30, alignSelf: 'center'}}>
                 Staff Reviewed Claims
-                <div style={{ overflow: 'auto'}}>
+                <div style={{ overflow: 'auto', height: '35vh'}}>
+                  {data.video?.allClaims?.staffReviewedClaims?.length > 0 && (
+                    data.video?.allClaims?.staffReviewedClaims?.map((review: any, reviewIndex: number) => 
+                      <div key={reviewIndex} style={{backgroundColor: 'deepskyblue', borderColor: 'cornflowerblue', borderWidth: 3, padding: 10}}>
+                        {/* <div style={{color: 'black', backgroundColor: 'navajowhite', borderColor: 'deepskyblue', width: `${review.reviewedBy.length}ch`, alignSelf: 'center'}}>
+                          {review.reviewedBy}
+                        </div> */}
+                        <div>{review.claims.length} Claims</div>
 
-                  {data.video?.allClaims?.staffReviewedClaims.map((review: any, reviewIndex: number) => 
-                    <div key={reviewIndex} style={{backgroundColor: 'deepskyblue', borderColor: 'cornflowerblue', borderWidth: 3, padding: 10}}>
-                      {/* <div style={{color: 'black', backgroundColor: 'navajowhite', borderColor: 'deepskyblue', width: `${review.reviewedBy.length}ch`, alignSelf: 'center'}}>
-                        {review.reviewedBy}
-                      </div> */}
-                      
-                        {review.claims.map((claim: string, claimIndex: number) => 
-                            <div key={claimIndex} style={{color: 'white', fontSize: 20, padding: 5}}>
-                              {claim}
-                            </div>
-                        )}
-                    </div>
+                          {review.claims.map((claim: string, claimIndex: number) => 
+                              <div key={claimIndex} style={{color: 'white', fontSize: 20, padding: 5}}>
+                                {claim}
+                              </div>
+                          )}
+                      </div>
+                    )
                   )}
                 </div>
               </div>
@@ -141,22 +163,24 @@ const VideoIdAllStaffReviewedClaims = ({data}: IProps) => {
           <div style={{width: '40vw', height: '100vh',  right: 0, display: 'flex', flexDirection: 'column', backgroundColor: 'antiquewhite'}}>
             <div style={{color: 'black', fontSize: 30, alignSelf: 'center'}}>
               Claims
-              {data.video.allClaims?.claimsInProgress?.map((claim: any, i: number) => (
-              <div key={i} style={{color: 'black', fontSize: 20}}>
-                {claim}
-                {/* <button onClick={() => setShowForItem(reviewIndex, claimIndex, !showSuggestEdit[reviewIndex]?.claims[claimIndex]?.show)}>
-                  Suggest Edit
-                </button>
-                {showSuggestEdit[reviewIndex]?.claims[claimIndex]?.show && (
-                  <div>
-                    <textarea style={{width: 200, height: 200, color: 'white', backgroundColor: 'black'}} onChange={(e) => handleSuggestionText(e.target.value, reviewIndex, claimIndex)}/>
-                    <button onClick={() => suggestEdit(reviewIndex, claimIndex)}>
-                      Sumbit
-                    </button>
-                  </div>
-                )} */}
-              </div>
-              ))}
+              {data.video.allClaims?.claimsInProgress?.length > 0 && (
+                data.video.allClaims?.claimsInProgress?.map((claim: any, i: number) => (
+                <div key={i} style={{color: 'black', fontSize: 20}}>
+                  {claim}
+                  {/* <button onClick={() => setShowForItem(reviewIndex, claimIndex, !showSuggestEdit[reviewIndex]?.claims[claimIndex]?.show)}>
+                    Suggest Edit
+                  </button>
+                  {showSuggestEdit[reviewIndex]?.claims[claimIndex]?.show && (
+                    <div>
+                      <textarea style={{width: 200, height: 200, color: 'white', backgroundColor: 'black'}} onChange={(e) => handleSuggestionText(e.target.value, reviewIndex, claimIndex)}/>
+                      <button onClick={() => suggestEdit(reviewIndex, claimIndex)}>
+                        Sumbit
+                      </button>
+                    </div>
+                  )} */}
+                </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -171,6 +195,7 @@ export async function getServerSideProps(context: any) {
   const { query } = context;
   const videoId = query.videoId;
   const video = await client.fetch(`*[_id == '${videoId}'][0]{
+    _createdAt,
     allClaims,
     postedBy,
     cues,
@@ -178,7 +203,10 @@ export async function getServerSideProps(context: any) {
   }`);
   console.log('video in allStaffReviewedClaims:', video)
 
-  const user = await client.fetch(`[_id == ${video.postedBy._id}]`)
+  const user = await client.fetch(`*[_id == ${video.postedBy._id}][0]{
+    _id,
+    userName
+  }`)
   const props = {
     data: {
       video: video || {},

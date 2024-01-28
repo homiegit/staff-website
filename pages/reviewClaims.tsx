@@ -3,11 +3,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import querystring from 'querystring';
 import { v4 as uuidv4 } from 'uuid';
+import Link from 'next/link';
 
 import { IVideo, IUser } from '../../homie-website/types.js'
 import VideoCard from '../components/VideoCard';
 import NavBar from '../components/NavBar';
 import useAuthStore from '../store/authStore';
+
+import { aboutGodKeywords } from '../../homie-website/config';
 
 declare global {
   interface HTMLVideoElement {
@@ -28,6 +31,28 @@ interface TranscriptionItem {
   alternatives: { confidence: number; content: string }[];
   start_time: number;
   end_time: number
+};
+
+export function getTimeAgo(time: string) {
+  const now = new Date();
+  const createdAt = new Date(time);
+  const timeDifference = Math.floor((now.getTime() - createdAt.getTime()) / 1000); // Calculate time difference in seconds
+  // let timeAgo;
+
+  if (timeDifference < 60) {
+    return `${timeDifference} seconds`;
+  } else if (timeDifference < 3600) {
+    const minutes = Math.floor(timeDifference / 60);
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  } else if (timeDifference < 86400) {
+    const hours = Math.floor(timeDifference / 3600);
+    const remainingMinutes = Math.floor((timeDifference % 3600) / 60);
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} and ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
+  } else {
+    const days = Math.floor(timeDifference / 86400);
+    const hours = Math.floor((timeDifference % 86400) / 3600);
+    return `${days} ${days === 1 ? 'day' : 'days'} and ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
 }
 const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
   const { userProfile, addUser, removeUser } = useAuthStore();
@@ -61,10 +86,14 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
   const [showNavBar, setShowNavBar] = useState(false);
 
   useEffect(() => {
-    setTimeout(() => {
+    // setTimeout(() => {
       setShowNavBar(true);
-    }, 1000)
-  }, [videos])
+    // }, 1000)
+  }, [])
+
+  useEffect(() => {
+    console.log('users:', users)
+  }, [users])
 
 
   const onVideoPress = async(index: number) => {
@@ -293,9 +322,8 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
   }
 
   const handlePush = async(isPending: any, video: IVideo) => {
-    if (!isPending) {
-      router.push(`/allStaffReviewedClaims/${video._id}`);
-     } else {
+    if (isPending) {
+    } else if (isPending === undefined ) {
       await createClaimsReview(video._id)
       const videoObject = {
         videoUrl: video.videoUrl,
@@ -303,7 +331,25 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
       };
       const videoParam = encodeURIComponent(JSON.stringify(videoObject));
       router.push(`/claimsReview/${videoParam}`); 
+    } else if (isPending === false) {
+      router.push(`/allStaffReviewedClaims/${video._id}`);
+
     }
+  }
+
+  const getTimeDifference = (time: string) => {
+    const now = new Date();
+    const createdAt = new Date(time);
+  
+    return Math.floor((now.getTime() - createdAt.getTime()) / 1000)
+  }
+
+  if (!userProfile  || !showNavBar) {
+    return;
+  } else {
+    console.log('userProfile:', userProfile);
+   // setShowNavBar(true);
+    
   }
 
   return (
@@ -317,31 +363,9 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
       <div style={{color: 'white', fontSize: 30}}>
         Videos waiting for claims to be review
       </div>
-      {videos?.map((video: IVideo, index) => {
-        const now = new Date();
-        const createdAt = new Date(video.createdAt);
-        const timeDifference = Math.floor((now.getTime() - createdAt.getTime()) / 1000); // Calculate time difference in seconds
-        let timeAgo;
-      
-        if (timeDifference < 60) {
-          timeAgo = `${timeDifference} seconds`;
-        } else if (timeDifference < 3600) {
-          const minutes = Math.floor(timeDifference / 60);
-          timeAgo = `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
-        } else if (timeDifference < 86400) {
-          const hours = Math.floor(timeDifference / 3600);
-          const remainingMinutes = Math.floor((timeDifference % 3600) / 60);
-          timeAgo = `${hours} ${hours === 1 ? 'hour' : 'hours'} and ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
-        } else {
-          const days = Math.floor(timeDifference / 86400);
-          const hours = Math.floor((timeDifference % 86400) / 3600);
-          timeAgo = `${days} ${days === 1 ? 'day' : 'days'} and ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
-        }
-        
-        const hasReviewerReviewed = video?.allClaims?.staffReviewedClaims
-        ? video?.allClaims?.staffReviewedClaims?.find(review => review.reviewedBy?._ref === userProfile?._id ?? '')
-        : undefined;
-        console.log('hasReviewerReviewed:', hasReviewerReviewed)
+      {videos.map((video: IVideo, index) => {
+        const hasReviewerReviewed = video.allClaims?.staffReviewedClaims?.find(review => review.reviewedBy._ref === userProfile._id);
+        console.log(`hasReviewerReviewed ${video.caption}:`, hasReviewerReviewed)
 
         const isPending = hasReviewerReviewed ? hasReviewerReviewed.isPending : undefined;
         console.log('isPending:', isPending)
@@ -353,9 +377,16 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
         const remainingReviews = Math.max(10 - (nonPendingStaffReviewedClaims?.length || 0), 0);
         
         return (
-          <div key={video._id} style={{display: 'flex', flexDirection: 'row'}}>
-            <div style={{display: 'flex', flexDirection: 'column', height: 350, padding: 20}}>
-              <button onClick={() => onVideoPress(index)}>
+          <div key={video._id} style={{display: 'flex', flexDirection: 'row', width: '100vw', height: '50vh'}}>
+            <div style={{display: 'flex', flexDirection: 'column', width: '15vw', height: '20vh', padding: 20}}>
+              <Link href={`/profile/${users[index]?._id}`}>
+                <div
+                  style={{ color: 'white', textAlign: 'center', fontSize: 20 }}
+                >
+                  {users[index]?.userName}{}
+                </div>
+              </Link>
+              <button onClick={() => onVideoPress(index)} style={{backgroundColor:'transparent'}}>
                 <video
                   id={video._id}
                   loop={loop}
@@ -367,16 +398,17 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
                   }}
                   src={video.videoUrl ? video.videoUrl : ''}
                   data-playing={playing}
-                  style={{width: 114, height: 200, backgroundColor: 'black'}}
+                  style={{width: '15vw', position: 'relative', right: 8}}
                   onTimeUpdate={updateProgress}
                   //onLoadedMetadata={() => handleVideoLoadedMetadata(index)}
                 />
               </button>
-              <div style={{color: 'white', alignSelf: 'center', fontSize: 25}}>
+              <div style={{color: 'white', alignSelf: 'center', fontSize: 25, paddingBottom: 10}}>
               {videoDurations[index]}
               </div>
+
             </div>
-            <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 10, width: '60vw'}}>
               <div style={{display: 'flex', flexDirection: 'row', alignSelf: 'center'}}>
                 <form style={{width: 200, height: 15, alignSelf: 'center', paddingBottom: 5}}>
                   <input 
@@ -387,7 +419,7 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
                 </form>
                 <p style={{fontSize: 20, position: 'absolute', top: 54, right: 280, color: '#F6E05E'}}>{highlightedTranscription.length}</p>
               </div>
-              <div style={{fontSize: 17, width: 400, height: 150, overflow: 'auto'}}>
+              <div style={{fontSize: 17, height: '25vh', overflow: 'auto'}}>
                 {video?.cues?.map((item, idx) => {
                   const matchedWord = highlightedTranscription.includes(item.alternatives[0].content);
                   const isCurrentWord = idx === currentWordIndex;
@@ -408,16 +440,10 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
                 }
                 )}
               </div>
-              <div style={{display: 'flex', flexDirection: 'row', gap: 10, color: 'white', fontSize: 25}}>
-              {video?.allClaims?.chatGptClaims?.length} Claims
-                <div style={{fontSize: 15, alignSelf: 'center'}}>
-                  by ChatGPT
-                </div>
-              </div>
-              <div style={{color: 'white', fontSize: 20, width: 400, height: 150, overflow: 'auto'}}>
+              <div style={{color: 'white', fontSize: 20, overflow: 'auto', height: '25vh'}}>
                 {video?.allClaims?.chatGptClaims?.map((claim, index) => (
                   <div style={{paddingBottom: 15}} key={index}>
-                    {claim}
+                    {claim.claim}
                   </div>
                 ))}
               </div>
@@ -434,25 +460,25 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
                   }}
                   //disabled={isPending !== undefined ?!isPending : false}
                 >
-                 {/* {isPending !== undefined ? 
-                  (isPending ? 'Continue': 'Done') : 'Review'} */}
-                  Select
+                 {isPending !== undefined ? 
+                  (isPending ? 'Continue': 'Done') : 'Review'}
+                  
                 </button>
               </div>
               <div style={{display: 'flex', flexDirection: 'column'}}>
                 <div style={{}}>
+                  <div style={{ color: 
+                    getTimeDifference(video._createdAt) > 21600 ? 'red' :
+                    getTimeDifference(video._createdAt)  > 3600 ? 'orange' :
+                    getTimeDifference(video._createdAt)  > 1800 ? 'green' :
+                    'green', alignSelf: 'center'
+                    }}
+                  >
+                    {getTimeAgo(video._createdAt)} ago
+                  </div>  
                   <p style={{fontSize: 20, color: 'white', textAlign: 'center'}}>
                   {remainingReviews} more reviews left
                   </p>
-                </div>
-                <div style={{ color: 
-                  timeDifference > 21600 ? 'red' :
-                  timeDifference > 3600 ? 'orange' :
-                  timeDifference > 1800 ? 'green' :
-                  'green'
-                }}
-                >
-                  {timeAgo} ago
                 </div>
               </div>
             </div>
@@ -466,28 +492,36 @@ const ReviewClaims: React.FC<IProps> = ({ videos, users }: IProps) => {
 export default ReviewClaims;
 
 export async function getServerSideProps() {
-  const pendingVideos = await client.fetch(`*[_type == 'video' && isAboutGod == true && areClaimsReviewed == false]{
+  const query = `*[_type == 'video' && isAboutGod && !areClaimsReviewed] {
     videoUrl,
+    caption,
     allClaims,
     cues,
     _id,
-    createdAt
-  } | order(createdAt asc)`);
-
-  // const userRefs = pendingVideos.map((video: any) => video.postedBy._ref);
+    _createdAt,
+    postedBy
+  } | order(createdAt asc)`;
   
-  // const userPromises = userRefs.map((userRef: string) =>
-  //   client.fetch(`*[_id == '${userRef}']`)
-  // );
+  const pendingVideos = await client.fetch(query);
+  //console.log(`bakanha: ${JSON.stringify(pendingVideos[0].allClaims, null, 2)}`)
 
-  // const users = await Promise.all(userPromises);
+  const userRefs = pendingVideos.map((video: any) => video.postedBy._ref);
+  
+  const userPromises = userRefs.map((userRef: string) =>
+    client.fetch(`*[_id == '${userRef}']{
+      _id,
+      userName
+    }`)
+  );
 
-  console.log("pendingVideos:", pendingVideos);
-  //console.log("users:", users);
+  const users = await Promise.all(userPromises);
+
+  //console.log("pendingVideos:", pendingVideos);
+ // console.log("users:", users);
 
   const props = {
     videos: pendingVideos || [],
-    //users: users || []
+    users: users[0] || []
   };
 
   return {

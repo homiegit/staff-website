@@ -1,6 +1,7 @@
 import { client } from '../../homie-website/utils/client'
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import axios from "axios";
 import { SERVER_IP_URL } from '../../homie-website/config';
 import { GiCancel } from 'react-icons/gi';
@@ -9,13 +10,17 @@ import { IStaff, IVideo } from '../../homie-website/types';
 import { flatten } from 'lodash';
 import NavBar from '../components/NavBar';
 
-interface IProps {
+interface Data {
   staffUsers: IStaff[];
-  videoReviewsThisWeek: string[];
-  claimReviewsThisWeek: string[];
+  videoReviewsThisWeek: {
+    _ref: string;
+  }[];
+  claimReviewsThisWeek: {
+    _ref: string;
+  }[];
 }
 
-const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}: IProps) => {
+const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}: Data) => {
   const router = useRouter();
   const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,16 +28,51 @@ const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}:
   const [jobTitles, setJobTitles] = useState<string[]>([]);
   const [jobTitle, setJobTitle] = useState('');
   const [selectedUser, setSelectedUser] = useState<IStaff>();
+  const [data, setData] = useState<Data[]>([]);
 
   const temporaryPassword = `${userName}.temporary.password`
 
   const [showNavBar, setShowNavBar] = useState(false);
+  const oneWeekAgo = 
 
   useEffect(() => {
     setTimeout(() => {
       setShowNavBar(true);
     }, 1000)
-  }, [staffUsers])
+    
+  }, [])
+
+  useEffect(() => {
+    console.log(`staffUsers: `, staffUsers)
+  }, [staffUsers]);
+  useEffect(() => {
+    console.log(`videoReviewsThisWeek: `, videoReviewsThisWeek)
+  }, [videoReviewsThisWeek]);
+  useEffect(() => {
+    console.log(`claimReviewsThisWeek: `, claimReviewsThisWeek)
+  }, [claimReviewsThisWeek]);
+
+  // const fetchData = async() => {
+  //   const videoReviewsThisWeek = await client.fetch(`*[_type == 'staffVideoReview' && completedAt >= ${oneWeekAgo}]`);
+
+  //   const videosWithClaimReviews = await client.fetch(`*[allClaims.staffReviewedClaims.length != 0 && claims.length == 0]{
+  //     allClaims{
+  //       staffReviewedClaims
+  //     }
+  //   }`);
+
+  //   let videosWithClaimReviewsThisWeek = [];
+
+  //   staffUsers.map((user, index) => {
+  //     const completedClaimReviewsThisWeek = videosWithClaimReviews.filter((video: IVideo) => video.allClaims.staffReviewedClaims.some(video => video.reviewedBy._ref === user._id));
+
+  //     videosWithClaimReviewsThisWeek.push(completedClaimReviewsThisWeek);
+  //   });
+
+  //   return {
+  //     videoReviewsThisWeek
+  //   }
+  // }
 
   const handleUserName = (text: string) => {
     setEmail(text);
@@ -70,7 +110,7 @@ const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}:
       try {
         await client.patch(selectedUser._id).set({jobTitles: jobTitles}).commit()
         console.log(`successfully updated ${selectedUser.userName} jobTitles to ${jobTitles}`)
-        setJobTitles([])
+        router.reload()
 
       } catch (error) {
         console.log('error patching user', error)
@@ -124,8 +164,8 @@ const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}:
     </div>
   ));  
 
-  const selectedUserVideoReviewsCount = videoReviewsThisWeek?.filter((userName) => userName === selectedUser?.userName).length;
-  const selectedUserClaimReviewsCount = claimReviewsThisWeek?.filter((userName) => userName === selectedUser?.userName).length;
+  const selectedUserVideoReviewsCount = videoReviewsThisWeek?.filter((user) => user._ref !== selectedUser?.userName);
+  const selectedUserClaimReviewsCount = claimReviewsThisWeek?.filter((user) => user._ref !== selectedUser?.userName);
 
   return(
     <div style={{width: '100vw', height: '100vh', backgroundColor: 'black', display: 'flex', flexDirection: 'column'}}>
@@ -160,7 +200,7 @@ const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}:
               </input> */}
               {inputs}
                 <AiFillPlusSquare style={{color: 'cornflowerblue', fontSize: 20}} onClick={() => handleAddJobTitle()}/>
-            <button onClick={() => editStaffJobTitles()} disabled={jobTitles.length === 0 || selectedUser?.jobTitles.some((title, i) => title === jobTitles[i])}>
+            <button onClick={() => editStaffJobTitles()} disabled={jobTitles.length === 0 || jobTitles.every(title => selectedUser?.jobTitles.includes(title)) || jobTitles.some((title) => title === "")}>
               Edit
             </button>
           </div>
@@ -194,9 +234,11 @@ const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}:
         {selectedUser !== undefined && (
           <div style={{width: '75vw', height: '50vh', backgroundColor: 'lawngreen'}}>
             <div style={{display: 'flex', flexDirection: 'row'}}>
-              <div style={{fontSize: 30, color: 'black', paddingRight: 10}}>
-                {selectedUser.userName}
-              </div>
+              <Link href={`/profile/${selectedUser._id}`}>
+                <div style={{fontSize: 30, color: 'black', paddingRight: 10}}>
+                  {selectedUser.userName}
+                </div>
+              </Link>
                 {selectedUser.jobTitles.map((title, i) => (
                   <>
                     {selectedUser.jobTitles.length > 1 ? (
@@ -213,12 +255,12 @@ const EditStaffUser = ({staffUsers, videoReviewsThisWeek, claimReviewsThisWeek}:
             </div>
             {selectedUser.jobTitles.includes('videoReviewer') && 
               <div style={{fontSize: 20, color: 'black'}}>
-              {selectedUserVideoReviewsCount ?? 0} video reviews this week
+              {selectedUserVideoReviewsCount.length ?? 0} video reviews this week
               </div> 
             }
             {selectedUser.jobTitles.includes('claimReviewer') && 
               <div style={{fontSize: 20, color: 'black'}}>
-                {selectedUserVideoReviewsCount ?? 0 } claim reviews this week
+                {selectedUserClaimReviewsCount.length ?? 0 } claim reviews this week
               </div>
             } 
             
@@ -245,7 +287,7 @@ export async function getServerSideProps() {
   }`);
 
   const videoClaimsReviewedByStaff = await client.fetch(`*[_type == 'video' && allClaims.staffReviewedClaims.length != 0]{
-    claims{
+    allClaims{
       staffReviewedClaims
     }
   }`);
@@ -268,7 +310,7 @@ export async function getServerSideProps() {
 
   videoClaimsReviewedByStaff?.forEach((video: IVideo) => {
     const claimReviewsWithinOneWeek = video.allClaims?.staffReviewedClaims.filter((review: any) => {
-      const reviewDate = new Date(review._createdAt);
+      const reviewDate = new Date(review.completedAt);
       return reviewDate >= oneWeekAgo; // Check if the review date is on or after one week ago
     });
 

@@ -52,6 +52,7 @@ const VideoId = () => {
   const [showMissingFields, setShowMissingFields] = useState<string[]>([]);
   const [showPreviewReview, setShowPreviewReview] = useState(false);
   const router = useRouter();
+
   //console.log("router.query:", router.query);
 
   const {videoId} = router.query
@@ -213,6 +214,10 @@ const VideoId = () => {
     </div>
   ));
 
+  const handleClassifyClaim = (classification: string, index: number) => {
+
+  }
+
   return (
     <div style={{backgroundColor: 'black', width: '100vw', height: '100vh'}}>
       {showNavBar ? (
@@ -226,36 +231,47 @@ const VideoId = () => {
           
           <button
             onClick={() => submitClaimsReview()}
-            disabled={claimsArray.some((claim) => claim.claim === '')}
-            style={{width: 100, height: 50, backgroundColor: 'white', fontSize: 20, color: 'black', opacity: claimsArray.some((claim) => claim.claim === '') ? 0.5 : 1}}
+            disabled={claimsArray.some((claim) => claim.claim === '') || claimsArray.length === 0}
+            style={{width: 100, height: 50, backgroundColor: 'white', fontSize: 20, color: 'black', opacity: claimsArray.some((claim) => claim.claim === '') || claimsArray.length === 0 ? 0.5 : 1}}
           >
             Submit
           </button>
-          <div style={{display: 'flex', flexDirection: 'row',width: 1000, height: 600}}> 
-            <div style={{display: 'flex', flexDirection: 'column',width: 500}}> 
+          <div style={{display: 'flex', flexDirection: 'row',width: '100vh', height: '100vh'}}> 
+            <div style={{display: 'flex', flexDirection: 'column',width: '50vw'}}> 
             {video !== null && user !== null && (
               <VideoCard video={video} user={user} />
             )}
+              <div style={{display: 'flex', flexDirection: 'column'}}>
+                {forms}
+                <button style={{color: 'white', backgroundColor: 'white', fontSize: 20, alignSelf: 'center' }}>
+                  <GrAddCircle onClick={() => handleAddClaim()}  />
+                </button>
+              </div>
             </div>
-              <div style={{display: 'flex', flexDirection: 'row', backgroundColor: 'black'}} >
-                <div style={{display: 'flex', flexDirection: 'column'}}>
-                  {forms}
-                  <button style={{color: 'white', backgroundColor: 'white', fontSize: 20, alignSelf: 'center' }}>
-                    <GrAddCircle onClick={() => handleAddClaim()}  />
-                  </button>
+            <div style={{display: 'flex', flexDirection: 'row', backgroundColor: 'black', width: '50vw', height: '100vh'}} >
+              <div style={{display: 'flex', flexDirection: 'column'}}> 
+                <div style={{color: 'white', textAlign: 'center', fontSize: 25, borderColor: 'white', borderWidth: 2, backgroundColor: 'black', width: '50vw', height: '100vh'}}>
+                  ChatGPT Claims 
                 </div>
-                <div style={{display: 'flex', flexDirection: 'column'}}> 
-                  <div style={{color: 'white', textAlign: 'center', fontSize: 25, borderColor: 'white', borderWidth: 2, backgroundColor: 'black'}}>
-                    ChatGPT Claims 
+                <div>
+                {video?.allClaims?.chatGptClaims?.map((claim, index) => (
+                  <div key={index} style={{display: 'flex', flexDirection: 'row'}}>
+                    <div style={{ color: 'white', fontSize: 20 }}>
+                      {claim.claim}
+                    </div>
+                    <div className="dropdown-content">
+                      <button onClick={() => handleClassifyClaim('true', index)}>True</button>
+                      <button onClick={() => handleClassifyClaim('false', index)}>False</button>
+                      <button onClick={() => handleClassifyClaim('unsure', index)}>Unsure</button>
+                      <button onClick={() => handleClassifyClaim('irrelevant', index)}>Irrelevant</button>
+                    </div>
                   </div>
-                  {video?.allClaims?.chatGptClaims?.map((claim, index) => 
-                  <div key={index} style={{color: 'white', fontSize: 20}}>
-                    {claim}
-                  </div>
-                  )}
+                ))}
+
                 </div>
               </div>
             </div>
+          </div>
         </>
       ) : (
         <>

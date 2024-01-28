@@ -13,7 +13,7 @@ import NavBar from '../components/NavBar';
 const Home = () => {
   const router = useRouter();
   //const userProfile = '';
-  const { userProfile, addUser, removeUser } = useAuthStore();
+  const { userProfile, addUser, removeUser, fetchUser } = useAuthStore();
   const [signInUserName, setSignInUserName] = useState('');
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
@@ -34,13 +34,22 @@ const Home = () => {
 
   useEffect(() => {
     console.log('userProfile:', userProfile);
-  }, [userProfile]);
+    fetchUser({
+      _id: '',
+      _rev: '',
+      _createdAt: '',
+      _updatedAt: '',
+      userName: '',
+      jobTitles: [],
+    });
+    setShowNavBar(true);
+  }, []);
 
-  useEffect(() => {
-    setTimeout(() => {
-      setShowNavBar(true);
-    }, 1000)
-  }, [])
+  // useEffect(() => {
+  //   setTimeout(() => {
+  //     setShowNavBar(true);
+  //   }, 1000)
+  // }, [])
 
   // Fetch the CSRF secret from the server
   const fetchCSRFDataAndStore = async () => {
@@ -139,6 +148,10 @@ const Home = () => {
     setSignInPassword(text)
   } 
 
+  if (!userProfile || !showNavBar) {
+    return;
+  }
+ 
   return(
     <div style={{backgroundColor: 'aquamarine', width: '100vw', height: '100vw'}}>
       {showNavBar ? (
@@ -147,9 +160,9 @@ const Home = () => {
         <div style={{height: 19, width: '100vw'}}>
         </div>
       )}
-      {userProfile ? (
+      {userProfile?._id ? (
         <div style={{color: 'blueviolet', fontSize: 30, textAlign: 'center'}}>
-          Welcome Back {userProfile.userName}
+          Welcome Back {userProfile.userName} 
         </div>
       ) : ( 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 500, height: 500}}>

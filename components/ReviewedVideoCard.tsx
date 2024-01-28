@@ -15,7 +15,7 @@ interface TranscriptionItem {
   end_time: number
 }
 
-const VideoCard: React.FC<IProps> = ({video, user}: IProps) => {
+const ReviewedVideoCard: React.FC<IProps> = ({video, user}: IProps) => {
   // console.log('video in videocard', video);
   // console.log('user in videocard', user);
   if (video === null || user === null) {
@@ -187,113 +187,103 @@ const VideoCard: React.FC<IProps> = ({video, user}: IProps) => {
     setFullTranscription(yourTranscriptionItemsArray);
   }, [currentWordIndex]);
 
-  function formatDateToMMDDYYYY(isoString: string) {
-    const date = new Date(isoString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-based, so we add 1
-    const year = date.getFullYear().toString();
-  
-    return `${month}/${day}/${year}`;
-  }
-
   return(
-    <div style={{backgroundColor: 'black', display: 'flex', flexDirection: 'row', width: '50vw', height: '50vh'}}>
-      <div style={{display: 'flex', flexDirection: 'column'}}>
+    <div style={{backgroundColor: 'black'}}>
+      <div style={{display: 'flex', flexDirection: 'row', width: '100vw', height: '50vh'}}>
+        <div style={{display: 'flex', flexDirection: 'column'}}>
 
-        <div
-          onMouseEnter={() => setIsUserNameHovered(true)}
-          onMouseLeave={() => setIsUserNameHovered(false)}
-          >
-          <Link href={`/profile/${user?._id}`}>
-            <div 
-              style={{ color: 'white', textAlign: 'center', fontSize: 20 }}
+          <div
+            onMouseEnter={() => setIsUserNameHovered(true)}
+            onMouseLeave={() => setIsUserNameHovered(false)}
             >
-              {user?.userName}{}
-            </div>
-          </Link>
-          {/* <div>
-          {postedByUsers[0]?.isUserReliable?.reliability !== 'pending' && (
-            <div>
-              {isUserNameHovered && postedByUsers[0]?.isUserReliable?.proof[0]?.text && (
-                <div className={`${homieCheckReliability} text-black w-[200px]`}>
-                {postedByUsers[0]?.isUserReliable?.proof[0]?.text}
-                <div onClick={() => setShowUserSources(true)}
-                  className='text-black hover:text-white text-center'> Show Sources
-                  </div>
-                {showUserSources && (
-                <div className='text-center'>
-                  <a href={`${BASE_URL}/detail/${postedByUsers[0]?.isUserReliable?.proof[0].sources[0].video._ref}`} className='hover:text-primary'>{'post' }</a>
-                </div>
-                )}
-                </div>
-              )}
-            </div>
-          )
-          }
-          </div> */}
-        </div>
-        <button onClick={() => onVideoPress()}>
-
-          <video 
-            id={video?._id}
-            loop={loop}
-            ref={videoRef}
-            src={video?.videoUrl ? video?.videoUrl : ''}
-            data-playing={playing}
-            style={{width: '13vw', backgroundColor: 'black'}}
-            onTimeUpdate={updateProgress}
-            onLoadedMetadata={(e) => handleVideoLoadedMetadata(e)}
-          />
-        </button>
-        <div style={{color: 'white', fontSize: 20, alignSelf: 'center'}}>
-          {formatDateToMMDDYYYY(video?._createdAt)}
-        </div>
-      </div>
-      <div style={{display: 'flex', flexDirection: 'column', height: '50vh'}}>
-        <div style={{display: 'flex', flexDirection: 'row', alignSelf: 'center', position: 'relative'}}>
-            <input 
-              style={{width: 200, height: 15, alignSelf: 'center', textAlign: 'center', backgroundColor: 'black', borderColor: 'white', borderWidth: 2, color: 'white'}}
-              onChange={handleSearchTranscription}
-            >
-            </input>
-          <div style={{fontSize: 20,position: 'absolute', top: 0, right: 0, color: '#F6E05E'}}>{highlightedTranscription.length}</div>
-        </div>
-        <div style={{fontSize: 17, overflow: 'auto', position: 'relative', padding: 5}}>
-          {video?.cues.map((item, index) => {
-            const matchedWord = highlightedTranscription.includes(item.alternatives[0].content.toLowerCase());
-            const isCurrentWord = index === currentWordIndex; // Check if the current index matches the currentWordIndex
-            //log("item.start_time:", item.start_time)
-            //log("currentVideo:", currentVideo?.currentTime)
-            // if (item.start_time === currentVideo?.currentTime) {
-            // log("isCurrentWord:", isCurrentWord)
-            // }
-            return (
-              <span
-                key={index}
-                onClick={() => playWord(item.start_time)}
-                style={{
-                  //textDecoration: matchedWord ? "underline" : "",
-                  cursor: "pointer",
-                  color: isCurrentWord || matchedWord ? 'black' : 'white',
-                  backgroundColor: isCurrentWord ? 'rgb(0, 183, 255)' : matchedWord ? '#F6E05E' : 'transparent',
-                }}
-                className="hover:text-rgb(0, 183, 255) text-white"
+            <Link href={`/profile/${user?._id}`}>
+              <div 
+                style={{ color: 'white', textAlign: 'center', fontSize: 20 }}
               >
-                {item.alternatives[0].content}{" "}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-      {/* <div style={{color: 'white', fontSize: 20, overflow: 'auto'}}>
-        {video?.claims?.map((claim) => (
-          <div>
-            * {claim}
+                {user?.userName}{}
+              </div>
+            </Link>
+            {/* <div>
+            {postedByUsers[0]?.isUserReliable?.reliability !== 'pending' && (
+              <div>
+                {isUserNameHovered && postedByUsers[0]?.isUserReliable?.proof[0]?.text && (
+                  <div className={`${homieCheckReliability} text-black w-[200px]`}>
+                  {postedByUsers[0]?.isUserReliable?.proof[0]?.text}
+                  <div onClick={() => setShowUserSources(true)}
+                    className='text-black hover:text-white text-center'> Show Sources
+                    </div>
+                  {showUserSources && (
+                  <div className='text-center'>
+                    <a href={`${BASE_URL}/detail/${postedByUsers[0]?.isUserReliable?.proof[0].sources[0].video._ref}`} className='hover:text-primary'>{'post' }</a>
+                  </div>
+                  )}
+                  </div>
+                )}
+              </div>
+            )
+            }
+            </div> */}
           </div>
-        ))}
-        </div> */}
+          <button onClick={() => onVideoPress()}>
+
+            <video 
+              id={video?._id}
+              loop={loop}
+              ref={videoRef}
+              src={video?.videoUrl ? video?.videoUrl : ''}
+              data-playing={playing}
+              style={{width: '13vw', backgroundColor: 'black'}}
+              onTimeUpdate={updateProgress}
+              onLoadedMetadata={(e) => handleVideoLoadedMetadata(e)}
+            />
+          </button>
+        </div>
+        <div style={{display: 'flex', flexDirection: 'column'}}>
+          <div style={{display: 'flex', flexDirection: 'row', alignSelf: 'center', position: 'relative'}}>
+              <input 
+                style={{width: 200, height: 15, alignSelf: 'center', textAlign: 'center', backgroundColor: 'black', borderColor: 'white', borderWidth: 2, color: 'white'}}
+                onChange={handleSearchTranscription}
+              >
+              </input>
+            <div style={{fontSize: 20,position: 'absolute', top: 0, right: 0, color: '#F6E05E'}}>{highlightedTranscription.length}</div>
+          </div>
+          <div style={{fontSize: 17, overflow: 'auto', position: 'relative', padding: 5}}>
+            {video?.cues.map((item, index) => {
+              const matchedWord = highlightedTranscription.includes(item.alternatives[0].content.toLowerCase());
+              const isCurrentWord = index === currentWordIndex; // Check if the current index matches the currentWordIndex
+              //log("item.start_time:", item.start_time)
+              //log("currentVideo:", currentVideo?.currentTime)
+              // if (item.start_time === currentVideo?.currentTime) {
+              // log("isCurrentWord:", isCurrentWord)
+              // }
+              return (
+                <span
+                  key={index}
+                  onClick={() => playWord(item.start_time)}
+                  style={{
+                    //textDecoration: matchedWord ? "underline" : "",
+                    cursor: "pointer",
+                    color: isCurrentWord || matchedWord ? 'black' : 'white',
+                    backgroundColor: isCurrentWord ? 'rgb(0, 183, 255)' : matchedWord ? '#F6E05E' : 'transparent',
+                  }}
+                  className="hover:text-rgb(0, 183, 255) text-white"
+                >
+                  {item.alternatives[0].content}{" "}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+        {/* <div style={{color: 'white', fontSize: 20, overflow: 'auto'}}>
+          {video?.claims?.map((claim) => (
+            <div>
+              * {claim}
+            </div>
+          ))}
+          </div> */}
+      </div>
     </div>
   );
 };
 
-export default VideoCard;
+export default ReviewedVideoCard;

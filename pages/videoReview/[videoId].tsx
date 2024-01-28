@@ -5,7 +5,7 @@ import Quill from 'quill';
 //import dynamic from 'next/dynamic';
 import 'quill/dist/quill.snow.css';
 
-import { IVideo, IUser, IStaffVideoReview } from '../../../homie-website/types.js'
+import { IVideo, IUser, IStaffVideoReview, Items } from '../../../homie-website/types.js'
 import VideoCard from '../../components/VideoCard';
 import useAuthStore from '../../store/authStore';
 
@@ -74,9 +74,10 @@ const VideoId = () => {
 
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
   const [staffVideoUrl, setStaffVideoUrl] = useState('');
+  const [cues, setCues] = useState<Items[]>([]);
 
   const [showMissingFields, setShowMissingFields] = useState<string[]>([]);
-  const [showPreviewReview, setShowPreviewReview] = useState(false);
+  //const [showPreviewReview, setShowPreviewReview] = useState(false);
   const [staffReview, setStaffReview] = useState<IStaffVideoReview>();
   const router = useRouter();
   //console.log("router.query:", router.query);
@@ -123,7 +124,7 @@ const VideoId = () => {
   var Font = Quill.import('formats/font');
 
   const quillRef = useRef<Quill | null>(null);
-
+ 
   useEffect(() => {
     if (!quillRef.current) {
       Quill.register('modules/toolbar', Quill.import('modules/toolbar'));
@@ -151,6 +152,24 @@ const VideoId = () => {
         }
       });
     } 
+    
+    return () => {
+      // Clean up the Quill editor when the component unmounts
+      if (quillRef.current) {
+        const editorText = quillRef.current.root.innerHTML;
+
+        quillRef.current.off('text-change', (delta, oldDelta, source) => {
+          // This is the same event handler function you provided in the 'on' method
+          if (source === 'user') {
+            console.log("editorText:", editorText);
+            handleSetText(editorText);
+          }
+        }); 
+     
+        //quillRef.current = null;
+      }
+    };
+    
   }, []);
 
   const handleSetText = async(editorText: string) => {
@@ -203,11 +222,12 @@ const VideoId = () => {
     }
     if (!isExistingReviewFetched) {
       fetchReview()
+     
     }
   }, [])
 
   const submitBibleSource = () => {
-    if (book !== '' && chapter !== null && verse !== '') {
+    if (book !== '' && chapter !== null && verse !== '' && bibleSources) {
       setBibleSources(prevSources => [...prevSources, {book: book, chapter: chapter, verse: verse}])
       setBook('');
       setChapter('');
@@ -233,27 +253,30 @@ const VideoId = () => {
 
   const fetchReview = async() => {
     if (userProfile?._id && video) {
-      const review = await client.fetch(`*[_type == 'staffVideoReview' && reviewedVideoId == '${videoId}' && reviewedBy._id == '${userProfile._id}']`)
+      const review: IStaffVideoReview = await client.fetch(`*[_type == 'staffVideoReview' && reviewedVideoId == '${videoId}' && reviewedBy._id == '${userProfile._id}'][0]`)
 
-      setBibleSources(review.bibleSources);
-      setUrlSources(review.urlSources);
-      setText(review.text);
-      setChosenVideoReliability(review.chosenVideoReliability);
-      setStaffVideoUrl(review.staffVideoUrl ?? '')
-      // Map over video claims and create an updated claim array
-      const updatedClaimArray = video.claims.map((videoClaim, index) => {
-        const reliability = review?.claimsReliability[videoClaim.claim] || ''; // Get reliability from review or set default value
-      
-        return {
-          index,
-          claim: videoClaim.claim,
-          reliability,
-        };
-      });
-      
-      setClaimArray(updatedClaimArray);
-      setIsExistingReviewFetched(true);
-      return review;
+      if (review) {
+        setBibleSources(review.bibleSources);
+        setUrlSources(review.urlSources);
+        setText(review.text);
+        setChosenVideoReliability(review.chosenVideoReliability);
+        setStaffVideoUrl(review.staffVideoUrl ?? '')
+        // Map over video claims and create an updated claim array
+        const updatedClaimArray = video.claims?.map((claim, index) => {
+          const reliability = review.claimsReliability[index].reliability || ''; // Get reliability from review or set default value
+        
+          return {
+            index,
+            claim: claim.claim,
+            reliability,
+          };
+        });
+        
+        setClaimArray(updatedClaimArray);
+        setIsExistingReviewFetched(true);
+
+        setPreviousStaffReview(review);
+      }
     }
   }
   
@@ -296,7 +319,7 @@ const VideoId = () => {
   }, [claimArray])
 
   useEffect(() => {
-    if (claimArray.length === 0) {
+    if (claimArray?.length === 0) {
       console.log("empty claimarray");
       const newClaims = video?.claims?.map((claim, index) => ({
         index: index,
@@ -310,6 +333,9 @@ const VideoId = () => {
   }, [video]);
 
   const handlePreview = () => {
+    const date = new Date();
+    const formattedDate = date.toISOString();
+        
     if (text === '') {
       setShowMissingFields(prevMissing => [...prevMissing, 'text'])
     }
@@ -322,28 +348,53 @@ const VideoId = () => {
     if (chosenVideoReliability === '') {
       setShowMissingFields(prevMissing => [...prevMissing, 'chosenVideoReliability'])
     }
-    if (claimArray.some((claim) => claim.reliability !== '') && chosenVideoReliability !== '' && text !== '') {
+    if ((claimArray.some((claim) => claim.reliability !== '') || claimArray.length === 0 ) && chosenVideoReliability !== '' && text !== '') {
       setShowMissingFields([])
-      if (previousStaffReview && userProfile && video) {
-        const staffReviewObject = {
-          _id: previousStaffReview._id,
-          reviewedVideo: {
-            _ref: video._id
-          },
-          reviewedBy: {
-            _ref: userProfile._id
-          },
-          chosenVideoReliability: chosenVideoReliability,
-          claimsReliability: claimArray.map((claim) => claim.reliability),
-          text: text,
-          bibleSources: bibleSources ?? [],
-          urlSources: urlSources ?? [],
-          staffVideoUrl: staffVideoUrl,
-          isPending: true
+      if (userProfile && video) {
+        if (previousStaffReview) {
+          const staffReviewObject = {
+            _id: previousStaffReview._id,
+            _createdAt: previousStaffReview._createdAt,
+            completedAt: formattedDate,
+            reviewedVideo: {
+              _ref: video._id
+            },
+            reviewedBy: {
+              _ref: userProfile._id
+            },
+            chosenVideoReliability: chosenVideoReliability,
+            claimsReliability: claimArray,
+            text: text,
+            bibleSources: bibleSources ?? [],
+            urlSources: urlSources ?? [],
+            staffVideoUrl: staffVideoUrl,
+            cues: cues,
+            isPending: true
+          }
+        
+          setStaffReview(staffReviewObject)
+          // setShowPreviewReview(true)
+        } else {
+          // setStaffReview({
+          //   _id: uuidv4(),
+          //   _createdAt: previousStaffReview._createdAt,
+          //   completedAt: formattedDate,
+          //   reviewedVideo: {
+          //     _ref: video._id
+          //   },
+          //   reviewedBy: {
+          //     _ref: userProfile._id
+          //   },
+          //   chosenVideoReliability: chosenVideoReliability,
+          //   claimsReliability: claimArray,
+          //   text: text,
+          //   bibleSources: bibleSources ?? [],
+          //   urlSources: urlSources ?? [],
+          //   staffVideoUrl: staffVideoUrl,
+          //   cues: cues,
+          //   isPending: true
+          // })
         }
-      
-        setStaffReview(staffReviewObject)
-        setShowPreviewReview(true)
       }
     }
   }
@@ -358,8 +409,8 @@ const VideoId = () => {
 
         </div>
       )}
-      {!showPreviewReview ? (
-        <>
+      {!staffReview ? (
+        <div style={{backgroundColor: 'transparent'}}>
           <button
             onClick={() => setChosenVideoReliability('true')}
             style={{width: 100, height: 50, backgroundColor: chosenVideoReliability === 'true' ? 'rgb(0, 183, 255)' : 'rgb(0, 183, 255)', opacity: chosenVideoReliability === 'true' ? 1 : 0.5, fontSize: 20 }}
@@ -389,21 +440,27 @@ const VideoId = () => {
 
               handlePreview()
             }}
-            disabled={text === '' || bibleSources.length === 0 || claimArray.some((claim) => claim.reliability === '') || chosenVideoReliability === ''}
-            style={{width: 100, height: 50, backgroundColor: 'white', fontSize: 20, color: 'black', opacity: text === '' || bibleSources.length === 0 || claimArray.some((claim) => claim.reliability === '') || chosenVideoReliability === '' ? 0.5 : 1 }}
+            disabled={text === '' || bibleSources?.length === 0 || claimArray?.some((claim) => claim.reliability === '') || chosenVideoReliability === ''}
+            style={{width: 100, height: 50, backgroundColor: 'white', fontSize: 20, color: 'black', opacity: text === '' || bibleSources?.length === 0 || claimArray?.some((claim) => claim.reliability === '') || chosenVideoReliability === '' ? 0.5 : 1 }}
             
           >
             Preview Review
-          </button>
-          <div style={{display: 'flex', flexDirection: 'row',width: 1000, height: 600}}> 
-            <div style={{display: 'flex', flexDirection: 'column',width: 500}}> 
-            <div id="editor-container" style={{ height: 300, width: 500 }} />
+          </button> 
+          {showMissingFields.length > 0 && 
+            <div style={{display: 'flex', flexDirection: 'column', color: 'red'}}> Missing
+            {showMissingFields.map((field) => 
+            <div style={{color: 'red'}}>{field} </div>)}
+            </div>
+          }
+          <div style={{display: 'flex', flexDirection: 'row',width: '100vw', height: '100vh'}}> 
+            <div style={{display: 'flex', flexDirection: 'column',width: '50vw'}}> 
+            <div id="editor-container" style={{ height: '50vh', width: '50vw' }} />
             {video !== null && user !== null && (
-              <VideoCard video={video} user={user} />
+              <VideoCard video={video} user={user}/>
             )}
             </div>
             <div style={{display: 'flex', flexDirection: 'column'}}> 
-              <div style={{width: 600, height: 500, backgroundColor: 'black', display: 'flex', flexDirection: 'column'}}>
+              <div style={{width: '50vw', height: '50vh', backgroundColor: 'black', display: 'flex', flexDirection: 'column'}}>
                 <div style={{color: 'white', alignSelf: 'center', fontSize: 25}}>
                   Sources
                 </div>
@@ -447,7 +504,7 @@ const VideoId = () => {
                   </div>
                 ))}
               </div>
-              <div style={{color: 'white', textAlign: 'center', fontSize: 25, borderColor: 'white', borderWidth: 2, backgroundColor: 'black', width: 600}}>
+              <div style={{color: 'white', textAlign: 'center', fontSize: 25, borderColor: 'white', borderWidth: 2, backgroundColor: 'black', width: '50vw', height: '50vh'}}>
                 Claims
               </div>
               <div style={{backgroundColor: 'black', overflow: 'auto'}}>
@@ -506,10 +563,10 @@ const VideoId = () => {
               </div>
             </div>
           </div>
-        </>
+        </div>
       ) : (
         <>
-        <GiCancel onClick={() => setShowPreviewReview(false)} style={{fontSize: 30, color: 'red'}}/>
+        {/* <GiCancel onClick={() => setShowPreviewReview(false)} style={{fontSize: 30, color: 'red'}}/> */}
 
         <PreviewReview staffReview={staffReview!}/>
         </>

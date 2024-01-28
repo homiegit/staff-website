@@ -30,6 +30,11 @@ const NavBar = () => {
           Review Videos 
         </button>
       )}
+      {userProfile?.jobTitles?.includes('reportReviewer') && (
+        <button onClick={() => router.push('/reviewReports')} style={{border: 2, borderColor: 'white', color: 'black', fontSize: 15}}>
+          Review Reports 
+        </button>
+      )}
       {userProfile?.jobTitles?.includes('owner' || 'administrator') && (
         <button onClick={() => router.push(`/reviewStaffVideoReviews`)} style={{border: 2, borderColor: 'white', color: 'black', fontSize: 15}}>
           Review Staff Reviews
@@ -42,6 +47,12 @@ const NavBar = () => {
           </button>
           <button onClick={() => router.push('/editDocument')} style={{border: 2, borderColor: 'white', color: 'black', fontSize: 15}}>
             Edit Document
+          </button>
+          <button onClick={() => router.push('/payroll')} style={{border: 2, borderColor: 'white', color: 'black', fontSize: 15}}>
+            Payroll
+          </button>
+          <button onClick={() => router.push('/transcription')} style={{border: 2, borderColor: 'white', color: 'black', fontSize: 15}}>
+            Transcription
           </button>
         </>
       )}

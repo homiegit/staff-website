@@ -53,6 +53,10 @@ const authStore = (set: any) => ({
 
     set({ allUsers: response.data });  
   },
+
+  fetchUser: async (userData: any) => {
+    set({userProfile: userData})
+  }
 });
 
 const useAuthStore = create((
